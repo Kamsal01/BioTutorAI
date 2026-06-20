@@ -1,0 +1,189 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { COURSE_REFUSAL, COURSE_SCOPE_SUMMARY, isApprovedCourseTopic } from "@/lib/course-scope";
+import { LESSON_NOTE_CONTEXT } from "@/lib/lesson-note-context";
+
+const schema = z.object({
+  messages: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(1500) })).min(1).max(20),
+  performance: z.object({
+    lastScore: z.number().optional(),
+    weakTopics: z.array(z.string()).optional()
+  }).optional()
+});
+
+const systemInstruction = `You are BioTutor, a friendly intelligent Biology tutor for secondary school students.
+
+CONTENT SCOPE RULE:
+Use the uploaded lesson note titled "Ifeoma_lesson updated.docx" as the primary course source.
+Approved course scope:
+${COURSE_SCOPE_SUMMARY}
+
+Approved lesson-note content:
+${LESSON_NOTE_CONTEXT}
+
+You may add simple Biology explanations, examples, and clarifications beyond the exact wording of the note, but only when they directly support the approved course scope: conservation of natural resources, pest and disease control, or reproduction in birds and mammals.
+
+Do not answer unrelated Biology topics such as photosynthesis, digestion, respiration, genetics, classification, or cell structure unless a teacher later approves them. If the learner asks anything outside the approved course scope, reply exactly:
+"${COURSE_REFUSAL}"
+
+For approved questions, explain simply, use the lesson note as the foundation, add helpful in-scope clarifications when needed, guide step by step, adapt to learner performance, and ask one short follow-up question when useful.`;
+
+const GEMINI_MODELS = [
+  process.env.GEMINI_MODEL,
+  "gemini-2.0-flash",
+  "gemini-2.5-flash",
+  "gemini-1.5-flash-latest"
+].filter(Boolean) as string[];
+
+function isCourseNavigationMessage(value: string) {
+  return /^(hi|hello|help|start|what can you teach|course|lesson|quiz|test|revise|revision|summary)/i.test(value.trim());
+}
+
+function isAmbiguousFollowUp(value: string) {
+  const normalized = value.toLowerCase();
+  const blockedTopics = ["photosynthesis", "digestion", "digestive", "respiration", "genetics", "classification", "cell structure", "cell", "enzyme", "enzymes"];
+  if (blockedTopics.some((topic) => normalized.includes(topic))) return false;
+  return /^(why|what|how|explain|describe|list|mention|name|is|are|can|could|tell)\b/i.test(value.trim());
+}
+
+function isFollowUpAnswer(messages: { role: "user" | "assistant"; content: string }[]) {
+  const lastUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  const previousAssistantMessage = [...messages]
+    .slice(0, -1)
+    .reverse()
+    .find((message) => message.role === "assistant")?.content ?? "";
+  const shortAnswer = /^[a-z ,.'-]{1,80}$/i.test(lastUserMessage.trim());
+  return shortAnswer && isApprovedCourseTopic(previousAssistantMessage);
+}
+
+function localLessonNoteReply(message: string) {
+  const normalized = message.toLowerCase();
+  const asksForExamples = /\b(example|examples|list|mention|name)\b/.test(normalized);
+
+  if (normalized.includes("natural resource") || normalized.includes("natural resources")) {
+    return "From the lesson note, natural resources are resources supplied by nature, such as water, soil, forests, minerals, fossil fuels, wildlife, and biodiversity. The lesson explains that these resources are limited and can be exhausted if misused, so they should be carefully used, managed, and protected for present and future generations. Can you name two natural resources from the lesson?";
+  }
+
+  if (normalized.includes("conservation")) {
+    return "From the lesson note, conservation of natural resources means the careful use, management, and protection of resources such as water, soil, forests, minerals, fossil fuels, wildlife, and biodiversity so they remain available for present and future generations. It is important because resources are limited and can be exhausted if misused. Can you mention one natural resource from the lesson?";
+  }
+
+  if (normalized.includes("importance") || normalized.includes("important") || normalized.includes("why")) {
+    return "From the lesson note, conservation is important because it supports sustainability for future generations, protects the environment, preserves biodiversity, helps regulate climate, conserves soil and water, reduces dependence on non-renewable resources, supports economic activities, and improves quality of life. Which importance would you like me to explain further?";
+  }
+
+  if (normalized.includes("method") || normalized.includes("methods") || normalized.includes("ways")) {
+    return "The lesson note gives several conservation and control methods. For conservation, methods include soil conservation, water conservation, forest conservation, and wildlife conservation. For pests and diseases, methods include chemical, biological, cultural, mechanical or physical control, quarantine and legislation, resistant varieties, and integrated pest or disease management. Which method should I explain?";
+  }
+
+  if (normalized.includes("soil")) {
+    return "From the lesson note, soil conservation prevents erosion, nutrient depletion, and soil degradation. Methods include afforestation and reforestation, contour ploughing, terracing, crop rotation, cover cropping or green manure, mulching, strip cropping, conservation tillage, gully control, and controlled grazing. Which of these methods would you like explained?";
+  }
+
+  if (normalized.includes("water")) {
+    return "From the lesson note, water conservation methods include rainwater harvesting, drip and sprinkler irrigation, reuse and recycling of water, protection of water sources, reducing water pollution, groundwater conservation, water-saving technologies at home, and public awareness. Which method can be used at home?";
+  }
+
+  if (normalized.includes("forest")) {
+    return "From the lesson note, forest conservation methods include afforestation, reforestation, controlled and regulated cutting, prevention of bush burning, prevention of overgrazing, social forestry, protected areas, forest laws, and public awareness. Why do you think bush burning harms forest conservation?";
+  }
+
+  if (normalized.includes("wildlife")) {
+    return "From the lesson note, wildlife conservation protects wild animals and their habitats. Methods include protected areas, enforcement of laws, captive breeding and rehabilitation, habitat restoration, prevention of over-exploitation, wildlife corridors, pollution control, and community education. Can you name one protected area example from the note?";
+  }
+
+  if (normalized.includes("symbol") || normalized.includes("slogan")) {
+    return "From the lesson note, conservation symbols include the recycling symbol, tree symbol, panda symbol, earth or globe symbol, water drop symbol, and green leaf symbol. Slogans include Reduce, Reuse, Recycle; Plant a tree, plant a life; Save water, save life; and Protect wildlife, protect nature. Which symbol should I explain?";
+  }
+
+  if (normalized.includes("pest")) {
+    return "From the lesson note, pests are organisms such as insects, weeds, fungi, rodents, bacteria, or other animals that harm humans, crops, livestock, property, or the environment. Types include insect pests, mite pests, nematode pests, rodent pests, bird pests, mollusk pests, weed pests, and microbial pests. Can you give one example of an insect pest?";
+  }
+
+  if (normalized.includes("disease")) {
+    return "From the lesson note, a disease is an abnormal condition that disrupts normal structure or function. Plant diseases may be fungal, bacterial, viral, nematode, mycoplasma or phytoplasma, or abiotic. Examples include powdery mildew, rust, leaf spot, bacterial blight, tobacco mosaic virus, and cassava mosaic disease. Which type do you want to revise?";
+  }
+
+  if (normalized.includes("control")) {
+    return "From the lesson note, pest and disease control methods include chemical, biological, cultural, mechanical or physical methods, resistant varieties, quarantine and legislation, and integrated pest or disease management. Benefits include higher yield and better food quality; drawbacks include pollution, resistance, cost, and harm to non-target organisms. Which method should we compare?";
+  }
+
+  if ((normalized.includes("bird") || normalized.includes("birds")) && asksForExamples) {
+    return "Examples of birds from the lesson note include hen, pigeon, and eagle. These are used in the note when comparing reproduction in birds and mammals. Can you mention one way birds reproduce differently from mammals?";
+  }
+
+  if ((normalized.includes("mammal") || normalized.includes("mammals")) && asksForExamples) {
+    return "Examples of mammals from the lesson note include humans, dogs, lions, and elephants. These mammals are used in the note when comparing reproduction in birds and mammals. Can you name one example of a mammal?";
+  }
+
+  if (/\b(dog|dogs|human|humans|lion|lions|elephant|elephants)\b/.test(normalized)) {
+    return "Correct. That is an example of a mammal from the lesson note. Mammals mostly give birth to live young, and mothers feed their young with milk from mammary glands. Can you list one more mammal example?";
+  }
+
+  if (/\b(hen|pigeon|eagle)\b/.test(normalized)) {
+    return "Correct. That is an example of a bird from the lesson note. Birds lay shelled eggs, incubate them, and the young hatch from eggs. Can you name one mammal example for comparison?";
+  }
+
+  if (normalized.includes("bird") || normalized.includes("birds")) {
+    return "From the lesson note, birds reproduce sexually through internal fertilization. They are oviparous, lay shelled eggs, incubate the eggs, and the young hatch from eggs. Bird embryos develop outside the mother's body and are nourished by yolk. Can you name one feature of bird reproduction?";
+  }
+
+  if (normalized.includes("mammal") || normalized.includes("mammals")) {
+    return "From the lesson note, mammals reproduce sexually through internal fertilization. Most mammals are viviparous, meaning they give birth to live young. The embryo develops in the uterus, is nourished by the placenta, and the young are fed with milk from mammary glands. What is one difference between mammals and birds?";
+  }
+
+  if (normalized.includes("fertilization") || normalized.includes("fertilisation")) {
+    return "From the lesson note, fertilization is the fusion of a sperm cell and an egg or ovum to form a zygote. In birds it occurs in the infundibulum of the oviduct; in mammals it occurs in the fallopian tube. What is formed after fertilization?";
+  }
+
+  if (normalized.includes("embryo") || normalized.includes("embryonic") || normalized.includes("zygote")) {
+    return "From the lesson note, embryonic development in birds occurs inside an egg outside the mother and uses nutrients from the yolk. In mammals, the zygote divides, implants in the uterus, receives nutrients through the placenta and umbilical cord, and develops into an embryo and then a fetus. Which animal group develops inside an egg?";
+  }
+
+  return "I can help with that within this course. Please be a little more specific: are you asking about conservation of natural resources, pest and disease control, or reproduction in birds and mammals?";
+}
+
+export async function POST(request: Request) {
+  const parsed = schema.safeParse(await request.json());
+  if (!parsed.success) return NextResponse.json({ error: "Invalid chat request" }, { status: 400 });
+
+  const lastUserMessage = [...parsed.data.messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  if (!isApprovedCourseTopic(lastUserMessage) && !isCourseNavigationMessage(lastUserMessage) && !isFollowUpAnswer(parsed.data.messages) && !isAmbiguousFollowUp(lastUserMessage)) {
+    return NextResponse.json({ reply: COURSE_REFUSAL });
+  }
+
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return NextResponse.json({ reply: "Gemini is not configured yet. Add GEMINI_API_KEY to enable AI tutoring." });
+
+  const genAI = new GoogleGenerativeAI(key);
+  const context = parsed.data.performance
+    ? `Learner performance context: last score ${parsed.data.performance.lastScore ?? "unknown"}; weak topics ${parsed.data.performance.weakTopics?.join(", ") || "none provided"}.`
+    : "No learner performance context provided.";
+  const prompt = `${context}
+
+Approved course scope:
+${COURSE_SCOPE_SUMMARY}
+
+Approved lesson-note content:
+${LESSON_NOTE_CONTEXT}
+
+Conversation:
+${parsed.data.messages.map((m) => `${m.role}: ${m.content}`).join("\n")}
+
+Reply as BioTutor. Stay inside the approved course scope, but you may add helpful examples and explanations beyond the exact note wording when they clarify the approved topic.`;
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName, systemInstruction });
+      const result = await model.generateContent(prompt);
+      return NextResponse.json({ reply: result.response.text(), model: modelName });
+    } catch {
+      continue;
+    }
+  }
+
+  return NextResponse.json({
+    reply: localLessonNoteReply(lastUserMessage),
+    model: "local-lesson-note-fallback"
+  });
+}

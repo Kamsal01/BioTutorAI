@@ -1,0 +1,14 @@
+.next
+node_modules
+.env
+.env.local
+.vercel
+coverage
+public/sw.js
+public/workbox-*.js
+dev-server.log
+dev-server.err
+tsconfig.tsbuildinfo
+*.docx
+lesson-note-extracted.txt
+package-lock.json
