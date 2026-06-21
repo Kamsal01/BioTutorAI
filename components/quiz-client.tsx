@@ -6,13 +6,26 @@ import { Award, RotateCcw } from "lucide-react";
 import type { Lesson } from "@/lib/types";
 import { masteryFromScore, nextDifficulty, scoreAttempt, xpAward } from "@/lib/adaptive";
 import { Card, ProgressBar } from "@/components/ui";
+import { saveQuizProgress } from "@/lib/progress-store";
 
 export function QuizClient({ lesson }: { lesson: Lesson }) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [saved, setSaved] = useState(false);
   const result = useMemo(() => scoreAttempt(answers, lesson.questions), [answers, lesson.questions]);
   const recommendedDifficulty = nextDifficulty(result.score);
   const xp = xpAward(result.score);
+
+  function submitQuiz() {
+    setSubmitted(true);
+    saveQuizProgress({
+      topicSlug: lesson.topicSlug,
+      title: lesson.title,
+      score: result.score,
+      timeSpentMinutes: Math.max(5, lesson.questions.length * 2)
+    });
+    setSaved(true);
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-5">
@@ -48,7 +61,7 @@ export function QuizClient({ lesson }: { lesson: Lesson }) {
       ))}
       <Card>
         {!submitted ? (
-          <button onClick={() => setSubmitted(true)} className="w-full rounded-md bg-leaf-500 px-5 py-3 font-black text-white hover:bg-leaf-700">Submit quiz</button>
+          <button onClick={submitQuiz} className="w-full rounded-md bg-leaf-500 px-5 py-3 font-black text-white hover:bg-leaf-700">Submit quiz</button>
         ) : (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -65,12 +78,14 @@ export function QuizClient({ lesson }: { lesson: Lesson }) {
             <p className="font-semibold text-slate-700">
               {result.passed ? `Progress unlocked. Next recommended difficulty: ${recommendedDifficulty}.` : `Remediation recommended. Review the lesson and retry easy questions.`}
             </p>
+            {saved ? <p className="rounded-md bg-leaf-50 px-4 py-3 text-sm font-bold text-leaf-700">Progress saved. Your dashboard and progress page have been updated.</p> : null}
             <p className="text-sm font-bold capitalize text-slate-500">Mastery: {masteryFromScore(result.score).replace("-", " ")}</p>
             <div className="flex flex-wrap gap-3">
-              <button onClick={() => { setSubmitted(false); setAnswers({}); }} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-4 py-3 font-bold">
+              <button onClick={() => { setSubmitted(false); setAnswers({}); setSaved(false); }} className="inline-flex items-center gap-2 rounded-md border border-slate-200 px-4 py-3 font-bold">
                 <RotateCcw className="h-4 w-4" /> Retry
               </button>
               <Link href={`/lesson/${lesson.topicSlug}`} className="rounded-md bg-ink px-4 py-3 font-bold text-white">Back to lesson</Link>
+              <Link href="/progress" className="rounded-md border border-leaf-500 px-4 py-3 font-bold text-leaf-700">View progress</Link>
             </div>
           </div>
         )}
