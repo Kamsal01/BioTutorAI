@@ -42,11 +42,7 @@ export default function TeacherDashboard() {
           <aside className="space-y-5">
             <Card>
               <h2 className="flex items-center gap-2 text-xl font-black"><Users className="h-5 w-5 text-leaf-700" /> Students needing support</h2>
-              <ul className="mt-4 space-y-3 text-sm text-slate-600">
-                <li><strong>Amina S.</strong> - Pests and diseases, 42%</li>
-                <li><strong>Joel O.</strong> - Fertilization and development, 48%</li>
-                <li><strong>Mary K.</strong> - Conservation methods, 39%</li>
-              </ul>
+              <p className="mt-3 text-sm text-slate-600">No student records yet. Learners who score below the mastery threshold will appear here after completing quizzes.</p>
             </Card>
             <Card>
               <h2 className="flex items-center gap-2 text-xl font-black"><Download className="h-5 w-5 text-coral" /> Reports</h2>
