@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { COURSE_REFUSAL, COURSE_SCOPE_SUMMARY, isApprovedCourseTopic } from "@/lib/course-scope";
+import { COURSE_SCOPE_SUMMARY, isApprovedCourseTopic } from "@/lib/course-scope";
 import { LESSON_NOTE_CONTEXT } from "@/lib/lesson-note-context";
 
 const schema = z.object({
@@ -14,20 +14,18 @@ const schema = z.object({
 
 const systemInstruction = `You are BioTutor, a friendly intelligent Biology tutor for secondary school students.
 
-CONTENT SCOPE RULE:
-Use the uploaded lesson note titled "Ifeoma_lesson updated.docx" as the primary course source.
-Approved course scope:
+CONTENT RULE:
+You are limited to Biology learning. Use the uploaded lesson note titled "Ifeoma_lesson updated.docx" as the primary course source when the question relates to:
 ${COURSE_SCOPE_SUMMARY}
 
 Approved lesson-note content:
 ${LESSON_NOTE_CONTEXT}
 
-You may add simple Biology explanations, examples, and clarifications beyond the exact wording of the note, but only when they directly support the approved course scope: conservation of natural resources, pest and disease control, or reproduction in birds and mammals.
+You may answer Biology questions conversationally, add simple examples, and explain beyond the exact wording of the note when it helps the learner. When a question is about the uploaded course topics, prioritize the lesson note. When a Biology question is outside the lesson note, answer briefly and gently connect it back to Biology learning.
 
-Do not answer unrelated Biology topics such as photosynthesis, digestion, respiration, genetics, classification, or cell structure unless a teacher later approves them. If the learner asks anything outside the approved course scope, reply exactly:
-"${COURSE_REFUSAL}"
+Do not answer non-Biology questions. If the learner asks something unrelated to Biology, politely say you can only help with Biology learning.
 
-For approved questions, explain simply, use the lesson note as the foundation, add helpful in-scope clarifications when needed, guide step by step, adapt to learner performance, and ask one short follow-up question when useful.`;
+Explain simply, guide step by step, adapt to learner performance, remember the conversation context, and ask one short follow-up question when useful.`;
 
 const GEMINI_MODELS = [
   process.env.GEMINI_MODEL,
@@ -41,10 +39,62 @@ function isCourseNavigationMessage(value: string) {
 }
 
 function isAmbiguousFollowUp(value: string) {
-  const normalized = value.toLowerCase();
-  const blockedTopics = ["photosynthesis", "digestion", "digestive", "respiration", "genetics", "classification", "cell structure", "cell", "enzyme", "enzymes"];
-  if (blockedTopics.some((topic) => normalized.includes(topic))) return false;
   return /^(why|what|how|explain|describe|list|mention|name|is|are|can|could|tell)\b/i.test(value.trim());
+}
+
+function isBiologyMessage(value: string) {
+  const normalized = value.toLowerCase();
+  if (isApprovedCourseTopic(normalized)) return true;
+
+  const biologyTerms = [
+    "biology",
+    "living",
+    "organism",
+    "organisms",
+    "plant",
+    "plants",
+    "animal",
+    "animals",
+    "human",
+    "humans",
+    "cell",
+    "cells",
+    "tissue",
+    "organ",
+    "organs",
+    "system",
+    "reproduction",
+    "reproductive",
+    "fertilization",
+    "fertilisation",
+    "embryo",
+    "mammal",
+    "mammals",
+    "bird",
+    "birds",
+    "pest",
+    "pests",
+    "disease",
+    "diseases",
+    "conservation",
+    "resource",
+    "resources",
+    "soil",
+    "water",
+    "forest",
+    "wildlife",
+    "photosynthesis",
+    "respiration",
+    "digestion",
+    "genetics",
+    "classification",
+    "ecology",
+    "nutrition",
+    "enzyme",
+    "enzymes"
+  ];
+
+  return biologyTerms.some((term) => normalized.includes(term));
 }
 
 function isFollowUpAnswer(messages: { role: "user" | "assistant"; content: string }[]) {
@@ -145,7 +195,15 @@ function localLessonNoteReply(message: string, context = "") {
     return "From the lesson note, embryonic development in birds occurs inside an egg outside the mother and uses nutrients from the yolk. In mammals, the zygote divides, implants in the uterus, receives nutrients through the placenta and umbilical cord, and develops into an embryo and then a fetus. Which animal group develops inside an egg?";
   }
 
-  return "I can help with that within this course. Please be a little more specific: are you asking about conservation of natural resources, pest and disease control, or reproduction in birds and mammals?";
+  if (normalized.includes("photosynthesis")) {
+    return "Photosynthesis is a Biology process where green plants make food using light energy, carbon dioxide, and water. Since your current course note focuses on conservation, pests and diseases, and reproduction in birds and mammals, I can explain this briefly or help you return to the course topics. Which would you prefer?";
+  }
+
+  if (normalized.includes("respiration")) {
+    return "Respiration is a Biology process by which living cells release energy from food. It is outside the main uploaded lesson note, but it is still Biology. Do you want a short explanation, or should we connect back to the current course topics?";
+  }
+
+  return "Good question. Let us keep it in Biology and take it step by step. Can you tell me the exact part you want explained, or should I connect it to conservation, pest and disease control, or reproduction in birds and mammals?";
 }
 
 export async function POST(request: Request) {
@@ -157,12 +215,26 @@ export async function POST(request: Request) {
     .slice(0, -1)
     .reverse()
     .find((message) => message.role === "assistant")?.content ?? "";
-  if (!isApprovedCourseTopic(lastUserMessage) && !isCourseNavigationMessage(lastUserMessage) && !isFollowUpAnswer(parsed.data.messages) && !isAmbiguousFollowUp(lastUserMessage)) {
-    return NextResponse.json({ reply: COURSE_REFUSAL });
+  const hasConversationContext = Boolean(previousAssistantMessage);
+  const allowedMessage =
+    isBiologyMessage(lastUserMessage) ||
+    isCourseNavigationMessage(lastUserMessage) ||
+    isFollowUpAnswer(parsed.data.messages) ||
+    (hasConversationContext && isAmbiguousFollowUp(lastUserMessage));
+
+  if (!allowedMessage) {
+    return NextResponse.json({
+      reply: "I am BioTutor, so I can only help with Biology learning. Ask me about living things, conservation, pests and diseases, or reproduction in birds and mammals."
+    });
   }
 
   const key = process.env.GEMINI_API_KEY;
-  if (!key) return NextResponse.json({ reply: "Gemini is not configured yet. Add GEMINI_API_KEY to enable AI tutoring." });
+  if (!key) {
+    return NextResponse.json({
+      reply: localLessonNoteReply(lastUserMessage, previousAssistantMessage),
+      model: "local-biology-fallback"
+    });
+  }
 
   const genAI = new GoogleGenerativeAI(key);
   const context = parsed.data.performance
@@ -179,7 +251,7 @@ ${LESSON_NOTE_CONTEXT}
 Conversation:
 ${parsed.data.messages.map((m) => `${m.role}: ${m.content}`).join("\n")}
 
-Reply as BioTutor. Stay inside the approved course scope, but you may add helpful examples and explanations beyond the exact note wording when they clarify the approved topic.`;
+Reply as BioTutor. Keep the conversation limited to Biology. Use the uploaded lesson note as the foundation for course topics, but answer naturally and conversationally. For follow-up messages, use the previous conversation context instead of asking the learner to restate everything.`;
   for (const modelName of GEMINI_MODELS) {
     try {
       const model = genAI.getGenerativeModel({ model: modelName, systemInstruction });
