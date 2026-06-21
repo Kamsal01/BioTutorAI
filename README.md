@@ -10,6 +10,7 @@ BioTutor ITS is a production-ready foundation for a Biology Intelligent Tutoring
 - Gemini-powered Biology tutor at `/tutor`, scoped to conservation, pest and disease control, and reproduction in birds and mammals
 - Multiple-choice adaptive assessment logic with score, mastery, XP, and remediation rules
 - Student dashboard with topics, progress, XP, streaks, badges, recommendations, and learning history
+- Editable student profile with picture upload, local fallback, and Supabase Storage sync
 - Teacher dashboard with lesson management, quiz management, weak-student monitoring, chatbot monitoring hooks, and analytics pages
 - Supabase schema for profiles, topics, lessons, quizzes, questions, quiz attempts, chatbot logs, progress, badges, leaderboard, and analytics events
 - PWA manifest and service-worker setup through `next-pwa` for cached lesson/static access
@@ -34,8 +35,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 3. In Supabase SQL Editor, run `supabase/schema.sql`.
 4. Then run `supabase/seed.sql` to add only the approved lessons from `Ifeoma_lesson updated.docx`.
-5. In Supabase Authentication settings, enable email/password sign-in.
-6. Keep Row Level Security enabled. The schema includes RLS policies and helper functions for teacher access.
+5. If your project already existed before profile pictures were added, run `supabase/profile-upgrade.sql`.
+6. In Supabase Authentication settings, enable email/password sign-in.
+7. Keep Row Level Security enabled. The schema includes RLS policies and helper functions for teacher access.
+
+The profile upgrade creates public `avatars` storage and lets each signed-in user upload only inside their own avatar folder.
 
 ## Gemini Setup
 
@@ -81,11 +85,13 @@ In a live classroom, wire the lesson and quiz forms to the Supabase `topics`, `l
 
 Students open `/student`, choose a Biology topic, read the structured lesson, ask BioTutor for help, and complete the adaptive quiz. Scores below 50% trigger remediation. Scores of 50% or higher unlock progression, XP, and mastery updates. Previously opened lessons can be read offline after the PWA service worker has cached them.
 
+Students can open `/profile` to edit their name, class level, school name, short bio, and profile picture.
+
 ## Security Notes
 
 - Supabase Auth handles credentials and sessions.
-- Middleware protects student, teacher, lesson, quiz, tutor, analytics, profile, progress, and leaderboard routes.
-- Teacher routes require `user_metadata.role = "teacher"`.
+- Role-based routing is enforced through Supabase Auth metadata and dashboard flow.
+- Teacher routes require `user_metadata.role = "teacher"` in connected production flows.
 - Gemini calls run server-side only.
 - Zod validates API payloads.
 - RLS policies restrict student records to the owner and analytics/progress records to teachers.
