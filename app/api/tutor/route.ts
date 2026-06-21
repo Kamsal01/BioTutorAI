@@ -97,6 +97,35 @@ function isBiologyMessage(value: string) {
   return biologyTerms.some((term) => normalized.includes(term));
 }
 
+function isClearlyNonBiology(value: string) {
+  const normalized = value.toLowerCase();
+  const nonBiologyTerms = [
+    "noun",
+    "verb",
+    "adjective",
+    "adverb",
+    "pronoun",
+    "preposition",
+    "grammar",
+    "sentence",
+    "essay",
+    "math",
+    "mathematics",
+    "algebra",
+    "physics",
+    "chemistry",
+    "history",
+    "government",
+    "president",
+    "capital city",
+    "programming",
+    "javascript",
+    "python"
+  ];
+
+  return nonBiologyTerms.some((term) => normalized.includes(term));
+}
+
 function isFollowUpAnswer(messages: { role: "user" | "assistant"; content: string }[]) {
   const lastUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
   const previousAssistantMessage = [...messages]
@@ -216,6 +245,12 @@ export async function POST(request: Request) {
     .reverse()
     .find((message) => message.role === "assistant")?.content ?? "";
   const hasConversationContext = Boolean(previousAssistantMessage);
+  if (isClearlyNonBiology(lastUserMessage)) {
+    return NextResponse.json({
+      reply: "I am BioTutor, so I can only help with Biology learning. Please ask me a Biology question."
+    });
+  }
+
   const allowedMessage =
     isBiologyMessage(lastUserMessage) ||
     isCourseNavigationMessage(lastUserMessage) ||
