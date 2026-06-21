@@ -8,7 +8,12 @@ export default function ProgressPage() {
       <div className="mx-auto max-w-5xl px-4 py-8">
         <h1 className="text-4xl font-black">Progress</h1>
         <div className="mt-6 grid gap-4">
-          {demoProgress.map((item) => {
+          {demoProgress.length === 0 ? (
+            <Card>
+              <h2 className="text-xl font-black">No progress yet</h2>
+              <p className="mt-2 text-slate-600">Start from Lesson One, complete the lesson activities, and take the quiz. Your scores, time spent, and mastery level will appear here.</p>
+            </Card>
+          ) : demoProgress.map((item) => {
             const topic = topics.find((t) => t.slug === item.topicSlug);
             return (
               <Card key={item.topicSlug}>

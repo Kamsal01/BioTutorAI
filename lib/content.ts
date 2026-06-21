@@ -342,12 +342,7 @@ export const lessons: Lesson[] = [
   }
 ];
 
-export const demoProgress: StudentProgress[] = [
-  { topicSlug: "lesson-one-conservation-natural-resources", completion: 100, bestScore: 86, timeSpentMinutes: 42, mastery: "mastered" },
-  { topicSlug: "lesson-two-forest-wildlife-conservation", completion: 70, bestScore: 64, timeSpentMinutes: 30, mastery: "developing" },
-  { topicSlug: "lesson-three-pests-diseases-control", completion: 45, bestScore: 42, timeSpentMinutes: 28, mastery: "needs-remediation" },
-  { topicSlug: "lesson-four-reproduction-birds-mammals", completion: 30, bestScore: 55, timeSpentMinutes: 24, mastery: "developing" }
-];
+export const demoProgress: StudentProgress[] = [];
 
 export function getLesson(slug: string) {
   return lessons.find((lesson) => lesson.topicSlug === slug);
