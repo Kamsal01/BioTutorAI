@@ -3,7 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ImagePlus, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui";
-import { createH5PBlock, loadEditableLessons, saveEditableLesson, type EditableLesson, typeLabel } from "@/lib/lesson-store";
+import { createH5PBlock, loadEditableLessons, publishEditableLesson, saveEditableLesson, type EditableLesson, typeLabel } from "@/lib/lesson-store";
 import type { H5PBlock } from "@/lib/types";
 
 const h5pTypes: H5PBlock["type"][] = ["multiple-choice", "flashcards", "fill-blank", "drag-sort"];
@@ -13,6 +13,7 @@ export function TeacherLessonEditor() {
   const [selectedSlug, setSelectedSlug] = useState("");
   const [draft, setDraft] = useState<EditableLesson | null>(null);
   const [message, setMessage] = useState("");
+  const [publishing, setPublishing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -91,15 +92,25 @@ export function TeacherLessonEditor() {
     const nextLessons = saveEditableLesson({ ...draft, approvalStatus: "draft" });
     setLessons(nextLessons);
     setDraft(nextLessons.find((lesson) => lesson.topicSlug === draft.topicSlug) ?? draft);
-    setMessage("Lesson saved as draft. Approve it when you want students to see it.");
+    setMessage("Draft saved on this browser. Students will see the change only after you click Approve for students.");
   }
 
-  function approveLesson() {
+  async function approveLesson() {
     if (!draft) return;
-    const nextLessons = saveEditableLesson({ ...draft, approvalStatus: "approved" });
+    setPublishing(true);
+    const approvedLesson = { ...draft, approvalStatus: "approved" as const };
+    const nextLessons = saveEditableLesson(approvedLesson);
     setLessons(nextLessons);
-    setDraft(nextLessons.find((lesson) => lesson.topicSlug === draft.topicSlug) ?? draft);
-    setMessage("Lesson approved. Students will see the updated content on this browser.");
+    setDraft(nextLessons.find((lesson) => lesson.topicSlug === draft.topicSlug) ?? approvedLesson);
+
+    try {
+      await publishEditableLesson(approvedLesson);
+      setMessage("Lesson approved and published. Students will see the updated content after opening or refreshing the lesson.");
+    } catch (error) {
+      setMessage(error instanceof Error ? `Saved locally, but Supabase publish failed: ${error.message}` : "Saved locally, but Supabase publish failed.");
+    } finally {
+      setPublishing(false);
+    }
   }
 
   function resetLesson() {
@@ -246,7 +257,7 @@ export function TeacherLessonEditor() {
 
           <div className="mt-5 flex flex-wrap gap-3">
             <button type="submit" className="inline-flex items-center gap-2 rounded-md bg-leaf-500 px-4 py-3 font-black text-white hover:bg-leaf-700"><Save className="h-4 w-4" /> Save draft</button>
-            <button type="button" onClick={approveLesson} className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-3 font-black text-white"><CheckCircle2 className="h-4 w-4" /> Approve for students</button>
+            <button type="button" onClick={approveLesson} disabled={publishing} className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-3 font-black text-white disabled:cursor-not-allowed disabled:opacity-60"><CheckCircle2 className="h-4 w-4" /> {publishing ? "Publishing" : "Approve for students"}</button>
             <button type="button" onClick={resetLesson} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-3 font-black text-slate-700"><RotateCcw className="h-4 w-4" /> Reset changes</button>
           </div>
         </Card>
@@ -263,3 +274,4 @@ function readFileAsDataUrl(file: File) {
     reader.readAsDataURL(file);
   });
 }
+

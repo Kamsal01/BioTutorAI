@@ -23,6 +23,21 @@ export function toEditableLesson(lesson: Lesson): EditableLesson {
   };
 }
 
+export function mergeEditableLesson(baseLesson: Lesson, edit?: Partial<EditableLesson> | null): EditableLesson {
+  return {
+    ...toEditableLesson(baseLesson),
+    ...edit,
+    id: baseLesson.id,
+    topicSlug: baseLesson.topicSlug,
+    questions: baseLesson.questions,
+    keyTerms: edit?.keyTerms ?? baseLesson.keyTerms,
+    objectives: edit?.objectives ?? baseLesson.objectives,
+    content: edit?.content ?? baseLesson.content,
+    h5pBlocks: edit?.h5pBlocks ?? baseLesson.h5pBlocks ?? [],
+    diagramImageUrl: edit?.diagramImageUrl ?? baseLesson.diagramImageUrl ?? ""
+  };
+}
+
 export function loadEditableLessons(): EditableLesson[] {
   if (!canUseStorage()) return lessons.map(toEditableLesson);
 
@@ -31,7 +46,7 @@ export function loadEditableLessons(): EditableLesson[] {
     if (!raw) return lessons.map(toEditableLesson);
     const saved = JSON.parse(raw) as EditableLesson[];
     const savedBySlug = new Map(saved.map((lesson) => [lesson.topicSlug, lesson]));
-    return lessons.map((lesson) => savedBySlug.get(lesson.topicSlug) ?? toEditableLesson(lesson));
+    return lessons.map((lesson) => mergeEditableLesson(lesson, savedBySlug.get(lesson.topicSlug)));
   } catch {
     return lessons.map(toEditableLesson);
   }
@@ -57,6 +72,50 @@ export function saveEditableLesson(nextLesson: EditableLesson) {
 
 export function getEditableLesson(slug: string) {
   return loadEditableLessons().find((lesson) => lesson.topicSlug === slug);
+}
+
+export async function fetchApprovedLesson(baseLesson: Lesson) {
+  try {
+    const response = await fetch(`/api/lessons/${encodeURIComponent(baseLesson.topicSlug)}`, {
+      cache: "no-store"
+    });
+    if (!response.ok) return getEditableLesson(baseLesson.topicSlug);
+    const data = await response.json() as { lesson?: Partial<EditableLesson> | null };
+    if (!data.lesson) return getEditableLesson(baseLesson.topicSlug);
+    const merged = mergeEditableLesson(baseLesson, { ...data.lesson, approvalStatus: "approved" });
+    saveEditableLesson(merged);
+    return merged;
+  } catch {
+    return getEditableLesson(baseLesson.topicSlug);
+  }
+}
+
+export async function publishEditableLesson(lesson: EditableLesson) {
+  const response = await fetch(`/api/lessons/${encodeURIComponent(lesson.topicSlug)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      title: lesson.title,
+      introduction: lesson.introduction,
+      objectives: lesson.objectives,
+      content: lesson.content,
+      keyTerms: lesson.keyTerms,
+      diagramPrompt: lesson.diagramPrompt,
+      diagramImageUrl: lesson.diagramImageUrl ?? "",
+      activity: lesson.activity,
+      h5pBlocks: lesson.h5pBlocks ?? [],
+      remediation: lesson.remediation,
+      summary: lesson.summary,
+      approvalStatus: lesson.approvalStatus
+    })
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({ error: "Could not publish lesson" })) as { error?: string };
+    throw new Error(data.error ?? "Could not publish lesson");
+  }
+
+  return response.json();
 }
 
 export function createH5PBlock(type: H5PBlock["type"]): H5PBlock {

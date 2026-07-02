@@ -5,20 +5,28 @@ import { useEffect, useState } from "react";
 import { Bot, CheckCircle2, ClipboardList, Image as ImageIcon, Layers3, Lightbulb, Sparkles } from "lucide-react";
 import type { H5PBlock, Lesson } from "@/lib/types";
 import { Card, IconButton } from "@/components/ui";
-import { getEditableLesson } from "@/lib/lesson-store";
+import { fetchApprovedLesson, getEditableLesson } from "@/lib/lesson-store";
 
 export function LessonView({ lesson }: { lesson: Lesson }) {
   const [visibleLesson, setVisibleLesson] = useState<Lesson>(lesson);
 
   useEffect(() => {
+    let active = true;
     const updateLesson = () => {
       const edited = getEditableLesson(lesson.topicSlug);
       setVisibleLesson(edited?.approvalStatus === "approved" ? edited : lesson);
     };
+
     updateLesson();
+    fetchApprovedLesson(lesson).then((edited) => {
+      if (!active || !edited) return;
+      setVisibleLesson(edited.approvalStatus === "approved" ? edited : lesson);
+    });
+
     window.addEventListener("storage", updateLesson);
     window.addEventListener("biotutor-lessons-updated", updateLesson);
     return () => {
+      active = false;
       window.removeEventListener("storage", updateLesson);
       window.removeEventListener("biotutor-lessons-updated", updateLesson);
     };
@@ -123,3 +131,4 @@ function labelForType(type: H5PBlock["type"]) {
       return "Drag and sort";
   }
 }
+
