@@ -40,6 +40,7 @@ create table public.lessons (
   key_terms jsonb not null default '[]',
   diagram_url text,
   diagram_prompt text,
+  h5p_blocks jsonb not null default '[]',
   activity text,
   remediation text,
   summary text,
@@ -215,3 +216,4 @@ insert into public.badges (code, name, description, xp_reward) values
 ('quiz-sprint', 'Quiz Sprint', 'Passed three quizzes in one day.', 75),
 ('streak-star', 'Streak Star', 'Maintained a seven-day learning streak.', 100)
 on conflict do nothing;
+

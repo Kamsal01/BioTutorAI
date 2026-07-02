@@ -30,10 +30,21 @@ export type Lesson = {
   content: string[];
   keyTerms: { term: string; meaning: string }[];
   diagramPrompt: string;
+  diagramImageUrl?: string;
   activity: string;
+  h5pBlocks?: H5PBlock[];
   remediation: string;
   summary: string;
   questions: Question[];
+};
+
+export type H5PBlock = {
+  id: string;
+  type: "multiple-choice" | "flashcards" | "fill-blank" | "drag-sort";
+  title: string;
+  prompt: string;
+  items: string[];
+  answer: string;
 };
 
 export type StudentProgress = {
@@ -43,3 +54,4 @@ export type StudentProgress = {
   timeSpentMinutes: number;
   mastery: "needs-remediation" | "developing" | "mastered";
 };
+

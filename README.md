@@ -11,7 +11,7 @@ BioTutor ITS is a production-ready foundation for a Biology Intelligent Tutoring
 - Multiple-choice adaptive assessment logic with score, mastery, XP, and remediation rules
 - Student dashboard with topics, progress, XP, streaks, badges, recommendations, and learning history
 - Editable student profile with picture upload, local fallback, and Supabase Storage sync
-- Teacher dashboard with lesson management, quiz management, weak-student monitoring, chatbot monitoring hooks, and analytics pages
+- Teacher dashboard with editable lesson management, image uploads, H5P-style activity blocks, quiz management, weak-student monitoring, chatbot monitoring hooks, and analytics pages
 - Supabase schema for profiles, topics, lessons, quizzes, questions, quiz attempts, chatbot logs, progress, badges, leaderboard, and analytics events
 - PWA manifest and service-worker setup through `next-pwa` for cached lesson/static access
 - Vercel-ready environment variable setup
@@ -36,8 +36,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 3. In Supabase SQL Editor, run `supabase/schema.sql`.
 4. Then run `supabase/seed.sql` to add only the approved lessons from `Ifeoma_lesson updated.docx`.
 5. If your project already existed before profile pictures were added, run `supabase/profile-upgrade.sql`.
-6. In Supabase Authentication settings, enable email/password sign-in.
-7. Keep Row Level Security enabled. The schema includes RLS policies and helper functions for teacher access.
+6. Run `supabase/lesson-editor-upgrade.sql` to add lesson H5P blocks and lesson-media storage.
+7. In Supabase Authentication settings, enable email/password sign-in.
+8. Keep Row Level Security enabled. The schema includes RLS policies and helper functions for teacher access.
 
 The profile upgrade creates public `avatars` storage and lets each signed-in user upload only inside their own avatar folder.
 
@@ -75,7 +76,7 @@ Open [http://localhost:3000](http://localhost:3000). Register as a student or te
 
 Teachers sign in with the teacher role, open `/teacher`, then use:
 
-- `/teacher/lessons` to add or edit topics, objectives, content, key terms, diagram prompts, activities, remediation, and summaries.
+- `/teacher/lessons` to edit lesson titles, objectives, content, key terms, diagram prompts, uploaded lesson pictures, H5P-style activities, remediation, and summaries.
 - `/teacher/quizzes` to manually add MCQs or call `/api/generate-quiz` for Gemini-assisted draft questions.
 - `/analytics` to review scores, weak topics, engagement, progress, and chatbot interaction trends.
 
@@ -116,3 +117,5 @@ supabase/             Database schema, RLS policies, and seed data
 - Add Playwright tests for auth routing, quiz scoring, and lesson offline access.
 "# BioTutorAI" 
 "# BioTutorAI" 
+
+
