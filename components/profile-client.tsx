@@ -11,6 +11,7 @@ import {
   saveStudentProfile,
   type StudentProfile
 } from "@/lib/profile-store";
+import type { Role } from "@/lib/types";
 
 type Message = {
   tone: "success" | "error" | "info";
@@ -19,7 +20,7 @@ type Message = {
 
 const classLevels = ["JSS1", "JSS2", "JSS3", "SSI", "SSII", "SSIII"];
 
-export function ProfileClient() {
+export function ProfileClient({ onRoleChange }: { onRoleChange?: (role: Role) => void }) {
   const [profile, setProfile] = useState<StudentProfile>(defaultStudentProfile);
   const [message, setMessage] = useState<Message | null>(null);
   const [saving, setSaving] = useState(false);
@@ -32,35 +33,40 @@ export function ProfileClient() {
 
     async function loadProfile() {
       const localProfile = loadStudentProfile();
-      if (active) setProfile(localProfile);
+      if (active) {
+        setProfile(localProfile);
+        onRoleChange?.(localProfile.role);
+      }
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const metadataRole: Role = user.user_metadata?.role === "teacher" ? "teacher" : "student";
       const { data } = await supabase
         .from("profiles")
         .select("full_name, role, avatar_url, school_name, class_level, bio")
         .eq("id", user.id)
         .maybeSingle();
 
-      if (!active || !data) return;
+      if (!active) return;
 
       const remoteProfile = saveStudentProfile({
-        fullName: data.full_name || user.user_metadata?.full_name || localProfile.fullName,
-        role: data.role === "teacher" ? "teacher" : "student",
-        avatarUrl: data.avatar_url || localProfile.avatarUrl,
-        schoolName: data.school_name || localProfile.schoolName,
-        classLevel: data.class_level || localProfile.classLevel,
-        bio: data.bio || localProfile.bio
+        fullName: data?.full_name || user.user_metadata?.full_name || localProfile.fullName,
+        role: data?.role === "teacher" ? "teacher" : metadataRole,
+        avatarUrl: data?.avatar_url || localProfile.avatarUrl,
+        schoolName: data?.school_name || localProfile.schoolName,
+        classLevel: data?.class_level || localProfile.classLevel,
+        bio: data?.bio || localProfile.bio
       });
       setProfile(remoteProfile);
+      onRoleChange?.(remoteProfile.role);
     }
 
     loadProfile();
     return () => {
       active = false;
     };
-  }, [supabase]);
+  }, [onRoleChange, supabase]);
 
   function updateField(field: keyof StudentProfile, value: string) {
     setProfile((current) => ({ ...current, [field]: value }));
@@ -103,6 +109,7 @@ export function ProfileClient() {
 
     const nextProfile = saveStudentProfile({ ...profile, avatarUrl });
     setProfile(nextProfile);
+    onRoleChange?.(nextProfile.role);
     setUploading(false);
   }
 
@@ -111,6 +118,7 @@ export function ProfileClient() {
     setSaving(true);
     const nextProfile = saveStudentProfile(profile);
     setProfile(nextProfile);
+    onRoleChange?.(nextProfile.role);
 
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -137,6 +145,9 @@ export function ProfileClient() {
     setSaving(false);
   }
 
+  const isTeacher = profile.role === "teacher";
+  const displayName = profile.fullName || (isTeacher ? "Teacher User" : "Student User");
+
   return (
     <div className="mt-6 grid gap-5 lg:grid-cols-[320px_1fr]">
       <Card>
@@ -144,10 +155,10 @@ export function ProfileClient() {
           <div className="relative">
             {profile.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={profile.avatarUrl} alt={`${profile.fullName} profile`} className="h-32 w-32 rounded-lg object-cover ring-4 ring-leaf-100" />
+              <img src={profile.avatarUrl} alt={`${displayName} profile`} className="h-32 w-32 rounded-lg object-cover ring-4 ring-leaf-100" />
             ) : (
               <span className="grid h-32 w-32 place-items-center rounded-lg bg-leaf-500 text-4xl font-black text-white ring-4 ring-leaf-100">
-                {initialsFromName(profile.fullName)}
+                {initialsFromName(displayName)}
               </span>
             )}
             <button
@@ -160,8 +171,8 @@ export function ProfileClient() {
             </button>
           </div>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
-          <h2 className="mt-8 text-2xl font-black">{profile.fullName || "Student User"}</h2>
-          <p className="text-sm font-semibold text-slate-600">{profile.classLevel} Biology learner</p>
+          <h2 className="mt-8 text-2xl font-black">{displayName}</h2>
+          <p className="text-sm font-semibold text-slate-600">{isTeacher ? "Biology teacher" : `${profile.classLevel} Biology learner`}</p>
           <div className="mt-5 grid w-full gap-3 text-left text-sm">
             <div className="rounded-lg bg-leaf-50 p-4">
               <p className="flex items-center gap-2 font-black text-leaf-700"><ShieldCheck className="h-4 w-4" /> Account</p>
@@ -178,7 +189,7 @@ export function ProfileClient() {
       <Card>
         <form onSubmit={submit} className="space-y-5">
           <div>
-            <p className="flex items-center gap-2 text-sm font-black uppercase text-leaf-700"><UserRound className="h-4 w-4" /> Student profile</p>
+            <p className="flex items-center gap-2 text-sm font-black uppercase text-leaf-700"><UserRound className="h-4 w-4" /> {isTeacher ? "Teacher profile" : "Student profile"}</p>
             <h2 className="mt-1 text-2xl font-black">Edit your details</h2>
           </div>
 
@@ -187,19 +198,26 @@ export function ProfileClient() {
               Full name
               <input value={profile.fullName} onChange={(event) => updateField("fullName", event.target.value)} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 font-medium" />
             </label>
-            <label className="font-bold">
-              Class level
-              <select value={profile.classLevel} onChange={(event) => updateField("classLevel", event.target.value)} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 font-medium">
-                {classLevels.map((level) => <option key={level}>{level}</option>)}
-              </select>
-            </label>
+            {isTeacher ? (
+              <div className="rounded-lg bg-leaf-50 p-4">
+                <p className="font-black text-leaf-700">Role</p>
+                <p className="mt-1 font-semibold text-slate-700">Teacher</p>
+              </div>
+            ) : (
+              <label className="font-bold">
+                Class level
+                <select value={profile.classLevel} onChange={(event) => updateField("classLevel", event.target.value)} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 font-medium">
+                  {classLevels.map((level) => <option key={level}>{level}</option>)}
+                </select>
+              </label>
+            )}
             <label className="font-bold md:col-span-2">
               School name
               <input value={profile.schoolName} onChange={(event) => updateField("schoolName", event.target.value)} placeholder="Enter your school name" className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 font-medium" />
             </label>
             <label className="font-bold md:col-span-2">
               Short bio
-              <textarea value={profile.bio} onChange={(event) => updateField("bio", event.target.value)} rows={4} maxLength={180} placeholder="Example: I am learning conservation, pest control, and reproduction in birds and mammals." className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 font-medium" />
+              <textarea value={profile.bio} onChange={(event) => updateField("bio", event.target.value)} rows={4} maxLength={180} placeholder={isTeacher ? "Example: I teach SSII Biology and monitor student progress." : "Example: I am learning conservation, pest control, and reproduction in birds and mammals."} className="mt-2 w-full rounded-md border border-slate-300 px-3 py-3 font-medium" />
             </label>
           </div>
 

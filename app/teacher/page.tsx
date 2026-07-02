@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Download, FilePlus2, LineChart, Users } from "lucide-react";
+import { Download, FilePlus2, LineChart, UserRound, Users } from "lucide-react";
 import { Topbar, Shell, Stat, Card, IconButton } from "@/components/ui";
 import { topics } from "@/lib/content";
 
@@ -14,6 +14,7 @@ export default function TeacherDashboard() {
             <h1 className="mt-1 text-4xl font-black">Monitor mastery and manage Biology content.</h1>
           </div>
           <div className="flex gap-3">
+            <IconButton Icon={UserRound} label="Edit profile" href="/profile" />
             <IconButton Icon={FilePlus2} label="Manage lessons" href="/teacher/lessons" />
             <IconButton Icon={LineChart} label="Analytics" href="/analytics" />
           </div>
@@ -54,3 +55,5 @@ export default function TeacherDashboard() {
     </Shell>
   );
 }
+
+
