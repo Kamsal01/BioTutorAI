@@ -11,20 +11,18 @@ const schema = z.object({
 });
 
 type ChatMessage = z.infer<typeof schema>["messages"][number];
+type TopicKey = "soil" | "photosynthesis" | "respiration" | "reproduction" | "fertilization" | "mammals" | "birds" | "cells" | "conservation" | "pests" | "diseases" | "biology";
 
-const systemInstruction = `You are BioTutor, a friendly intelligent Biology tutor for secondary school students.
+const systemInstruction = `You are BioTutor, a warm, natural Biology tutor for secondary school students.
 
-CORE BEHAVIOR:
-- Answer Biology questions freely, naturally, and conversationally.
-- You are not limited to a lesson note or uploaded material.
-- Stay strictly within Biology and Biology learning.
-- Explain concepts in simple language first, then add detail if the learner asks.
-- Use examples, analogies, and step-by-step explanations when useful.
-- Remember the conversation context, especially short follow-up messages like "yes", "break it down", "explain more", or "like a toddler".
-- Adapt to the learner's level and performance.
-- Ask one short follow-up question only when it helps the learner continue.
-- If the learner asks a non-Biology question, politely refuse and invite a Biology question.
-- Do not twist unrelated questions into Biology answers.`;
+Chat like a real tutor:
+- Reply directly to what the student just said.
+- Use the chat history so short messages like "yes", "continue", "break it down", "give examples", "why", or "explain like a child" continue the same topic.
+- Keep answers clear, friendly, and conversational. Avoid sounding like a form or policy.
+- Start simple, then add detail when the student asks.
+- Ask at most one short follow-up question when useful.
+- Stay within Biology. If the student asks a clearly non-Biology question, politely say you can only help with Biology and invite a Biology question.
+- Do not force every answer back to the lesson note. Answer Biology naturally.`;
 
 const GEMINI_MODELS = [
   process.env.GEMINI_MODEL,
@@ -34,21 +32,15 @@ const GEMINI_MODELS = [
 ].filter(Boolean) as string[];
 
 const BIOLOGY_TERMS = [
-  "biology", "living", "life", "organism", "organisms", "plant", "plants", "animal", "animals",
-  "human", "humans", "cell", "cells", "tissue", "tissues", "organ", "organs", "system", "systems",
-  "reproduction", "reproductive", "fertilization", "fertilisation", "embryo", "embryonic", "zygote",
-  "fetus", "foetus", "mammal", "mammals", "bird", "birds", "fish", "amphibian", "reptile",
-  "insect", "insects", "pest", "pests", "disease", "diseases", "pathogen", "virus", "bacteria",
-  "fungus", "fungi", "conservation", "resource", "resources", "soil", "water", "forest", "wildlife",
-  "ecosystem", "habitat", "biodiversity", "photosynthesis", "chlorophyll", "respiration", "digestion",
-  "nutrition", "enzyme", "enzymes", "genetics", "gene", "genes", "dna", "chromosome", "classification",
-  "ecology", "evolution", "adaptation", "blood", "heart", "lung", "lungs", "kidney", "brain", "nerve",
-  "hormone", "immune", "immunity", "flower", "seed", "germination", "root", "stem", "leaf", "leaves"
-];
-
-const BIOLOGY_EXAMPLE_WORDS = [
-  "dog", "cat", "lion", "elephant", "goat", "cow", "rat", "rabbit", "bat", "whale", "dolphin",
-  "hen", "chicken", "eagle", "pigeon", "maize", "bean", "mango", "mosquito", "grasshopper"
+  "biology", "living", "life", "organism", "organisms", "plant", "plants", "animal", "animals", "human", "humans",
+  "cell", "cells", "tissue", "organ", "organs", "system", "reproduction", "reproductive", "fertilization", "fertilisation",
+  "embryo", "zygote", "fetus", "foetus", "mammal", "mammals", "bird", "birds", "fish", "amphibian", "reptile",
+  "insect", "pest", "pests", "disease", "diseases", "pathogen", "virus", "bacteria", "fungus", "fungi", "conservation",
+  "resource", "resources", "soil", "water", "forest", "wildlife", "ecosystem", "habitat", "biodiversity", "photosynthesis",
+  "chlorophyll", "respiration", "digestion", "nutrition", "enzyme", "genetics", "gene", "genes", "dna", "chromosome",
+  "classification", "ecology", "evolution", "adaptation", "blood", "heart", "lung", "kidney", "brain", "nerve", "hormone",
+  "flower", "seed", "germination", "root", "stem", "leaf", "leaves", "dog", "cat", "lion", "elephant", "goat", "cow",
+  "rabbit", "bat", "whale", "dolphin", "hen", "chicken", "eagle", "pigeon", "maize", "bean", "mosquito", "grasshopper"
 ];
 
 const NON_BIOLOGY_PATTERNS = [
@@ -60,21 +52,16 @@ const NON_BIOLOGY_PATTERNS = [
   /\b(physics|chemistry|geography|economics|commerce|accounting|literature)\b/i
 ];
 
-const FOLLOW_UP_PATTERNS = [
-  /^(yes|yeah|yep|ok|okay|sure|please|go on|continue)$/i,
-  /\b(break it down|pieces|step by step|explain more|more explanation|simplify|simple|toddler|child|example|examples|why|how|what about|compare|difference|list|name|mention)\b/i
-];
+const FOLLOW_UP_PATTERN = /^(yes|yeah|yep|ok|okay|sure|please|go on|continue|next)$|\b(break it down|pieces|step by step|explain more|more explanation|simplify|simple|toddler|child|example|examples|why|how|compare|difference|list|name|mention|quiz me|test me)\b/i;
+const GREETING_PATTERN = /^(hi|hello|hey|good morning|good afternoon|good evening|help|start|who are you|what can you teach)\b/i;
+
 function normalize(value: string) {
   return value.trim().toLowerCase();
 }
 
-function includesBiologyTerm(value: string) {
+function containsBiology(value: string) {
   const normalized = normalize(value);
-  return BIOLOGY_TERMS.some((term) => normalized.includes(term)) || BIOLOGY_EXAMPLE_WORDS.some((term) => new RegExp(`\\b${term}\\b`, "i").test(value));
-}
-
-function isGreetingOrTutorNavigation(value: string) {
-  return /^(hi|hello|hey|good morning|good afternoon|good evening|help|start|what can you teach|who are you)\b/i.test(value.trim());
+  return BIOLOGY_TERMS.some((term) => new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(normalized));
 }
 
 function isClearlyNonBiology(value: string) {
@@ -82,140 +69,143 @@ function isClearlyNonBiology(value: string) {
 }
 
 function isFollowUp(value: string) {
-  const trimmed = value.trim();
-  return trimmed.length <= 120 && FOLLOW_UP_PATTERNS.some((pattern) => pattern.test(trimmed));
+  return value.trim().length <= 140 && FOLLOW_UP_PATTERN.test(value.trim());
 }
 
-function recentConversationHasBiology(messages: ChatMessage[]) {
-  return messages.slice(-6).some((message) => includesBiologyTerm(message.content));
+function isGreeting(value: string) {
+  return GREETING_PATTERN.test(value.trim());
 }
 
-function isAllowedBiologyConversation(messages: ChatMessage[]) {
-  const lastUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+function recentBiologyContext(messages: ChatMessage[]) {
+  return messages.slice(-8).some((message) => containsBiology(message.content));
+}
 
-  if (isClearlyNonBiology(lastUserMessage) && !includesBiologyTerm(lastUserMessage)) return false;
-  if (includesBiologyTerm(lastUserMessage)) return true;
-  if (isGreetingOrTutorNavigation(lastUserMessage)) return true;
-  if (isFollowUp(lastUserMessage) && recentConversationHasBiology(messages.slice(0, -1))) return true;
-
+function canAnswer(messages: ChatMessage[]) {
+  const last = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  if (isClearlyNonBiology(last) && !containsBiology(last)) return false;
+  if (containsBiology(last) || isGreeting(last)) return true;
+  if (isFollowUp(last) && recentBiologyContext(messages.slice(0, -1))) return true;
   return false;
 }
 
-function localBiologyReply(message: string, previousContext = "") {
-  const normalized = normalize(message);
-  const context = normalize(`${previousContext} ${message}`);
+function detectTopic(text: string): TopicKey | null {
+  const value = normalize(text);
+  if (/soil|erosion|mulch|terrac|contour|gully|grazing/.test(value)) return "soil";
+  if (/photosynthesis|chlorophyll|sunlight|glucose/.test(value)) return "photosynthesis";
+  if (/respiration|energy from food|aerobic|anaerobic/.test(value)) return "respiration";
+  if (/fertili[sz]ation|sperm|ovum|egg cell|zygote/.test(value)) return "fertilization";
+  if (/reproduction|reproductive|offspring|sexual|asexual/.test(value)) return "reproduction";
+  if (/mammal|mammals|dog|cat|lion|elephant|goat|cow|rabbit|bat|whale|dolphin/.test(value)) return "mammals";
+  if (/bird|birds|hen|chicken|eagle|pigeon|egg|feather/.test(value)) return "birds";
+  if (/cell|cells|nucleus|cytoplasm|membrane|chloroplast/.test(value)) return "cells";
+  if (/conservation|natural resource|resources|forest|wildlife|biodiversity/.test(value)) return "conservation";
+  if (/pest|aphid|grasshopper|weevil|caterpillar|rodent|snail|weed/.test(value)) return "pests";
+  if (/disease|pathogen|fungus|fungi|bacteria|virus|wilting|leaf spot|mosaic/.test(value)) return "diseases";
+  if (/biology|living thing|organism/.test(value)) return "biology";
+  return null;
+}
 
-  if (/\b(noun|verb|adjective|adverb|grammar)\b/i.test(message)) {
-    return "I am BioTutor, so I can only help with Biology learning. Please ask me a Biology question.";
+function lastTopic(messages: ChatMessage[]) {
+  for (const message of [...messages].reverse()) {
+    const topic = detectTopic(message.content);
+    if (topic) return topic;
   }
+  return null;
+}
 
-  if (normalized.includes("soil") || (isFollowUp(message) && context.includes("soil"))) {
-    if (/\b(toddler|child|simple|simplify)\b/i.test(message)) {
-      return "Sure. Think of soil like a soft bed where plants grow. Soil conservation means protecting that bed so rain, wind, animals, or bad farming do not wash it away or make it weak. We protect soil by planting trees and grasses, covering it with mulch, farming across slopes, making terraces, rotating crops, and controlling grazing.";
-    }
-    if (/\b(break|pieces|step|groups)\b/i.test(message)) {
-      return "Sure. Soil conservation can be broken into five parts: plant cover methods like trees, grasses, cover crops, and mulch; slope control methods like contour ploughing and terracing; good farming methods like crop rotation and reduced tillage; repair methods like gully control; and grazing control so animals do not remove too much vegetation.";
-    }
-    return "Soil conservation means protecting soil from being washed away, blown away, or losing nutrients. Common methods include planting trees, using cover crops, mulching, contour ploughing, terracing, crop rotation, reduced tillage, gully control, and controlled grazing.";
-  }
+function wantsSimple(value: string) {
+  return /toddler|child|simple|simplify|small child|beginner/i.test(value);
+}
 
-  if (normalized.includes("photosynthesis")) {
-    return "Photosynthesis is the process by which green plants make their own food. They use sunlight, carbon dioxide from the air, and water from the soil to make glucose, and oxygen is released. The green pigment chlorophyll helps trap light energy.";
-  }
+function wantsExamples(value: string) {
+  return /example|examples|list|name|mention/i.test(value);
+}
 
-  if (normalized.includes("respiration")) {
-    return "Respiration is how living cells release energy from food. In aerobic respiration, glucose reacts with oxygen to release energy, carbon dioxide, and water. Plants and animals both respire because all living cells need energy.";
-  }
-  if (normalized.includes("reproduction") || normalized.includes("reproductive")) {
-    return "Reproduction is the process by which living organisms produce new individuals of their own kind. It is important because it helps a species continue from one generation to another. There are two main types: asexual reproduction, where one parent produces offspring, and sexual reproduction, where male and female sex cells join during fertilization. In animals like mammals and birds, reproduction is usually sexual. Would you like me to explain sexual and asexual reproduction separately?";
-  }
+function wantsBreakdown(value: string) {
+  return /break|pieces|step by step|steps|parts|explain more|continue|go on|yes/i.test(value);
+}
 
-  if (normalized.includes("fertilization") || normalized.includes("fertilisation")) {
-    return "Fertilization is the joining of a male sex cell, called sperm, and a female sex cell, called an egg or ovum. This forms a zygote, which can grow into an embryo. In many animals, fertilization is the first major step in sexual reproduction.";
-  }
-
-  if (normalized.includes("biology")) {
-    return "Biology is the study of living things. It looks at plants, animals, humans, microorganisms, cells, reproduction, nutrition, respiration, genetics, ecology, and how organisms interact with their environment. Tell me one Biology topic you want to start with, and I will explain it simply.";
-  }
-  if (normalized.includes("mammal") || /\b(dog|cat|lion|elephant|goat|cow|rabbit|bat|whale|dolphin)\b/i.test(message)) {
-    return "Mammals are animals that usually have hair or fur, give birth to live young, and feed their young with milk from mammary glands. Examples include humans, dogs, cats, goats, cows, lions, elephants, bats, whales, and dolphins.";
-  }
-
-  if (normalized.includes("bird") || /\b(hen|chicken|eagle|pigeon)\b/i.test(message)) {
-    return "Birds are animals with feathers, beaks, wings, and hard-shelled eggs. Examples include hens, eagles, pigeons, ducks, and parrots. Most birds reproduce by laying eggs that develop outside the mother.";
-  }
-
-  if (normalized.includes("cell")) {
-    return "A cell is the basic unit of life. It is the smallest part of a living organism that can carry out life processes. Plant cells and animal cells both have parts such as a cell membrane, cytoplasm, and nucleus, while plant cells also have a cell wall and chloroplasts.";
+function localAnswerFor(topic: TopicKey, message: string) {
+  if (topic === "reproduction") {
+    if (wantsSimple(message)) return "Sure. Reproduction simply means making new living things. For example, dogs give birth to puppies, birds lay eggs that hatch into chicks, and plants can produce seeds that grow into new plants. It is how life continues from parents to offspring.";
+    if (wantsExamples(message)) return "Examples of reproduction include a hen laying eggs that hatch into chicks, a woman giving birth to a baby, a bean seed growing into a new bean plant, and bacteria dividing into two. These all produce new living things.";
+    if (wantsBreakdown(message)) return "Let us break reproduction into pieces: first, it means producing offspring. Second, it can be sexual, where male and female sex cells join. Third, it can be asexual, where one parent produces offspring alone. Fourth, the purpose is continuity, so the species does not die out.";
+    return "Reproduction is the process by which living organisms produce new individuals of their own kind. It is important because it keeps a species going from one generation to the next. There are two main types: sexual reproduction, which involves male and female sex cells, and asexual reproduction, which involves one parent. Want me to explain the two types with examples?";
   }
 
-  if (normalized.includes("conservation")) {
-    return "Conservation in Biology means the careful use and protection of natural resources and living things so they remain available for the future. It helps protect soil, water, forests, wildlife, and biodiversity.";
+  if (topic === "soil") {
+    if (wantsSimple(message)) return "Think of soil like a soft bed for plants. Soil conservation means protecting that bed so rain, wind, or animals do not carry it away. We protect it by planting trees and grasses, covering it with mulch, making terraces on slopes, and not allowing animals to overgraze.";
+    if (wantsBreakdown(message)) return "Sure. Soil conservation has five easy groups: plant cover methods like trees and cover crops; slope control like terracing and contour ploughing; good farming like crop rotation; repair work like gully control; and grazing control so animals do not remove too much grass.";
+    return "Soil conservation means protecting soil from erosion and loss of nutrients. Methods include afforestation, reforestation, mulching, cover cropping, contour ploughing, terracing, crop rotation, gully control, and controlled grazing.";
   }
 
-  if (normalized.includes("pest")) {
-    return "A pest is an organism that harms crops, animals, stored food, property, or human health. Examples include insects, rodents, weeds, nematodes, and some microorganisms. Pest control can be chemical, biological, cultural, physical, or integrated.";
+  if (topic === "photosynthesis") return "Photosynthesis is how green plants make food. They use sunlight, carbon dioxide from the air, and water from the soil to produce glucose. Oxygen is released as a by-product. In simple words: plants use light to cook their own food.";
+  if (topic === "respiration") return "Respiration is how living cells release energy from food. In aerobic respiration, glucose reacts with oxygen to release energy, carbon dioxide, and water. Plants and animals both respire because all cells need energy.";
+  if (topic === "fertilization") return "Fertilization is when a sperm cell joins with an egg cell. The new cell formed is called a zygote, and it can begin developing into an embryo. It is a key step in sexual reproduction.";
+  if (topic === "mammals") return "Mammals are animals that usually have hair or fur, give birth to live young, and feed their young with milk from mammary glands. Examples include humans, dogs, goats, cows, cats, lions, elephants, bats, whales, and dolphins.";
+  if (topic === "birds") return "Birds are animals with feathers, beaks, wings, and hard-shelled eggs. Most birds reproduce by laying eggs, incubating them, and caring for the young after hatching. Examples include hens, eagles, pigeons, ducks, and parrots.";
+  if (topic === "cells") return "A cell is the basic unit of life. It is the smallest part of a living thing that can carry out life processes. Plant and animal cells have a nucleus, cytoplasm, and cell membrane; plant cells also have a cell wall and chloroplasts.";
+  if (topic === "conservation") return "Conservation means using and protecting natural resources wisely so they remain available for the future. It includes protecting soil, water, forests, wildlife, and biodiversity from waste, damage, and overuse.";
+  if (topic === "pests") return "A pest is an organism that harms crops, stored food, animals, property, or the environment. Examples include grasshoppers, aphids, weevils, caterpillars, rats, birds, snails, weeds, fungi, and bacteria.";
+  if (topic === "diseases") return "A disease is a condition that prevents a living organism from functioning normally. In plants, diseases may be caused by fungi, bacteria, viruses, nematodes, or poor environmental conditions. Signs can include wilting, yellowing, leaf spots, rotting, and stunted growth.";
+  return "Biology is the study of living things. It covers plants, animals, humans, cells, nutrition, respiration, reproduction, genetics, ecology, diseases, and how organisms interact with their environment. Which part should we explore first?";
+}
+
+function localBiologyReply(messages: ChatMessage[]) {
+  const lastUserMessage = [...messages].reverse().find((message) => message.role === "user")?.content ?? "";
+  if (isClearlyNonBiology(lastUserMessage) && !containsBiology(lastUserMessage)) {
+    return "I am BioTutor, so I can only help with Biology learning. Ask me any Biology question and I will gladly help.";
   }
 
-  if (normalized.includes("disease")) {
-    return "A disease is a condition that stops a living organism from working normally. In plants, diseases may be caused by fungi, bacteria, viruses, nematodes, or poor environmental conditions. Control includes resistant varieties, sanitation, crop rotation, chemicals, and quarantine.";
+  if (isGreeting(lastUserMessage)) {
+    return "Hi, I am BioTutor. I can help you understand Biology in a simple way. You can ask me about cells, plants, animals, conservation, pests and diseases, reproduction, respiration, photosynthesis, or any Biology topic you are studying.";
   }
 
-  if (isFollowUp(message) && previousContext) {
-    return "Yes, let us continue from the Biology idea we were discussing. I can explain it more simply, give examples, compare it with another concept, or ask you a short practice question. Which one do you want?";
+  const topic = detectTopic(lastUserMessage) ?? lastTopic(messages.slice(0, -1));
+  if (topic) return localAnswerFor(topic, lastUserMessage);
+
+  if (isFollowUp(lastUserMessage)) {
+    return "Sure, let us continue. I can explain it more simply, give examples, break it into steps, or ask you a quick practice question. Which one do you prefer?";
   }
 
-  return "I can help with that as Biology. Tell me the exact Biology topic or concept you want explained, and I will break it down clearly.";
+  return "I can help with Biology. Tell me the Biology idea you are thinking about, and I will explain it naturally with examples.";
 }
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "Invalid chat request" }, { status: 400 });
 
-  const lastUserMessage = [...parsed.data.messages].reverse().find((message) => message.role === "user")?.content ?? "";
-  const previousAssistantMessage = [...parsed.data.messages]
-    .slice(0, -1)
-    .reverse()
-    .find((message) => message.role === "assistant")?.content ?? "";
-
-  if (!isAllowedBiologyConversation(parsed.data.messages)) {
-    return NextResponse.json({
-      reply: "I am BioTutor, so I can only help with Biology learning. Please ask me a Biology question."
-    });
+  if (!canAnswer(parsed.data.messages)) {
+    return NextResponse.json({ reply: "I am BioTutor, so I can only help with Biology learning. Please ask me a Biology question." });
   }
 
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
-    return NextResponse.json({
-      reply: localBiologyReply(lastUserMessage, previousAssistantMessage),
-      model: "local-biology-fallback"
-    });
+    return NextResponse.json({ reply: localBiologyReply(parsed.data.messages), model: "local-conversation-fallback" });
   }
 
   const genAI = new GoogleGenerativeAI(key);
   const context = parsed.data.performance
-    ? `Learner performance context: last score ${parsed.data.performance.lastScore ?? "unknown"}; weak topics ${parsed.data.performance.weakTopics?.join(", ") || "none provided"}.`
+    ? `Learner context: last score ${parsed.data.performance.lastScore ?? "unknown"}; weak topics ${parsed.data.performance.weakTopics?.join(", ") || "none provided"}.`
     : "No learner performance context provided.";
+  const conversation = parsed.data.messages.map((m) => `${m.role}: ${m.content}`).join("\n");
   const prompt = `${context}
 
-Conversation so far:
-${parsed.data.messages.map((m) => `${m.role}: ${m.content}`).join("\n")}
+Conversation:
+${conversation}
 
-Reply as BioTutor. Answer the latest learner message naturally using the conversation context. Stay within Biology only. If the latest message is a short follow-up, continue the previous Biology explanation instead of restarting. If the learner asks outside Biology, refuse politely.`;
+Answer the latest student message as BioTutor. Be conversational and remember the previous turns. If the student gives a short follow-up, continue the current Biology topic naturally. Keep it Biology-only.`;
 
   for (const modelName of GEMINI_MODELS) {
     try {
       const model = genAI.getGenerativeModel({ model: modelName, systemInstruction });
       const result = await model.generateContent(prompt);
-      return NextResponse.json({ reply: result.response.text(), model: modelName });
+      const reply = result.response.text().trim();
+      if (reply) return NextResponse.json({ reply, model: modelName });
     } catch {
       continue;
     }
   }
 
-  return NextResponse.json({
-    reply: localBiologyReply(lastUserMessage, previousAssistantMessage),
-    model: "local-biology-fallback"
-  });
+  return NextResponse.json({ reply: localBiologyReply(parsed.data.messages), model: "local-conversation-fallback" });
 }
-

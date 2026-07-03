@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { Bot, Send, User } from "lucide-react";
 import { Card } from "@/components/ui";
 
@@ -8,25 +8,34 @@ type Message = { role: "user" | "assistant"; content: string };
 
 export function TutorChat() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hi, I am BioTutor. Ask me any Biology question, and I will explain it clearly step by step." }
+    { role: "assistant", content: "Hi, I am BioTutor. Ask me any Biology question, and we will work through it together." }
   ]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function send(formData: FormData) {
-    const content = String(formData.get("message") || "").trim();
-    if (!content) return;
+  async function send(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const content = input.trim();
+    if (!content || loading) return;
+
     const next = [...messages, { role: "user" as const, content }];
     setMessages(next);
+    setInput("");
     setLoading(true);
 
-    const response = await fetch("/api/tutor", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: next, performance: { lastScore: 62, weakTopics: ["pests and diseases"] } })
-    });
-    const data = await response.json();
-    setMessages([...next, { role: "assistant", content: data.reply ?? "I could not answer that yet. Please try again." }]);
-    setLoading(false);
+    try {
+      const response = await fetch("/api/tutor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: next, performance: { lastScore: 62, weakTopics: ["pests and diseases"] } })
+      });
+      const data = await response.json();
+      setMessages([...next, { role: "assistant", content: data.reply ?? "I could not answer that yet. Please try again." }]);
+    } catch {
+      setMessages([...next, { role: "assistant", content: "I had trouble connecting just now. Please send that Biology question again." }]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -35,17 +44,16 @@ export function TutorChat() {
         {messages.map((message, index) => (
           <div key={`${message.role}-${index}`} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
             {message.role === "assistant" ? <Bot className="mt-2 h-5 w-5 text-leaf-700" /> : null}
-            <div className={`max-w-[80%] rounded-lg px-4 py-3 text-sm leading-6 ${message.role === "user" ? "bg-ink text-white" : "bg-leaf-50 text-ink"}`}>{message.content}</div>
+            <div className={`max-w-[80%] whitespace-pre-wrap rounded-lg px-4 py-3 text-sm leading-6 ${message.role === "user" ? "bg-ink text-white" : "bg-leaf-50 text-ink"}`}>{message.content}</div>
             {message.role === "user" ? <User className="mt-2 h-5 w-5 text-slate-500" /> : null}
           </div>
         ))}
-        {loading ? <p className="text-sm font-semibold text-slate-500">BioTutor is thinking...</p> : null}
+        {loading ? <p className="text-sm font-semibold text-slate-500">BioTutor is typing...</p> : null}
       </div>
-      <form action={send} className="flex gap-3 border-t border-slate-200 p-4">
-        <input name="message" placeholder="Ask any Biology question..." className="flex-1 rounded-md border border-slate-300 px-4 py-3" />
-        <button className="rounded-md bg-leaf-500 px-4 text-white hover:bg-leaf-700" aria-label="Send"><Send className="h-5 w-5" /></button>
+      <form onSubmit={send} className="flex gap-3 border-t border-slate-200 p-4">
+        <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask any Biology question..." className="flex-1 rounded-md border border-slate-300 px-4 py-3" />
+        <button disabled={loading} className="rounded-md bg-leaf-500 px-4 text-white hover:bg-leaf-700 disabled:cursor-not-allowed disabled:opacity-60" aria-label="Send"><Send className="h-5 w-5" /></button>
       </form>
     </Card>
   );
 }
-
