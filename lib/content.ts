@@ -130,7 +130,8 @@ export const lessons: Lesson[] = [
       { term: "Conservation symbol", meaning: "A sign or image used to represent conservation." },
       { term: "Conservation slogan", meaning: "A short statement that encourages conservation." }
     ],
-    diagramPrompt: "Approved-note diagram placeholder: conservation symbols and forest/wildlife protection.",
+    diagramPrompt: "Forest conservation, wildlife conservation, conservation symbols, and conservation slogans infographic.",
+    diagramImageUrl: "/lessons/lesson-two-forest-wildlife-conservation.png",
     activity: "Choose two conservation symbols from the note and explain their meanings, then write one teacher-approved conservation slogan.",
     remediation: "Review the difference between forest conservation and wildlife conservation, then study the approved symbols and slogans again.",
     summary: "Forest and wildlife conservation protect living resources and their habitats. Symbols and slogans help people remember conservation responsibilities.",
@@ -351,3 +352,4 @@ export function getLesson(slug: string) {
 export function getTopic(slug: string) {
   return topics.find((topic) => topic.slug === slug);
 }
+

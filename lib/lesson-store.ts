@@ -36,7 +36,7 @@ export function mergeEditableLesson(baseLesson: Lesson, edit?: Partial<EditableL
     objectives: edit?.objectives ?? baseLesson.objectives,
     content: edit?.content ?? baseLesson.content,
     h5pBlocks: edit?.h5pBlocks ?? baseLesson.h5pBlocks ?? [],
-    diagramImageUrl: edit?.diagramImageUrl ?? baseLesson.diagramImageUrl ?? ""
+    diagramImageUrl: edit?.diagramImageUrl || baseLesson.diagramImageUrl || ""
   };
 }
 
@@ -160,5 +160,4 @@ export function typeLabel(type: H5PBlock["type"]) {
       return "Drag and Sort";
   }
 }
-
 
