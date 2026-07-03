@@ -126,6 +126,17 @@ function localBiologyReply(message: string, previousContext = "") {
   if (normalized.includes("respiration")) {
     return "Respiration is how living cells release energy from food. In aerobic respiration, glucose reacts with oxygen to release energy, carbon dioxide, and water. Plants and animals both respire because all living cells need energy.";
   }
+  if (normalized.includes("reproduction") || normalized.includes("reproductive")) {
+    return "Reproduction is the process by which living organisms produce new individuals of their own kind. It is important because it helps a species continue from one generation to another. There are two main types: asexual reproduction, where one parent produces offspring, and sexual reproduction, where male and female sex cells join during fertilization. In animals like mammals and birds, reproduction is usually sexual. Would you like me to explain sexual and asexual reproduction separately?";
+  }
+
+  if (normalized.includes("fertilization") || normalized.includes("fertilisation")) {
+    return "Fertilization is the joining of a male sex cell, called sperm, and a female sex cell, called an egg or ovum. This forms a zygote, which can grow into an embryo. In many animals, fertilization is the first major step in sexual reproduction.";
+  }
+
+  if (normalized.includes("biology")) {
+    return "Biology is the study of living things. It looks at plants, animals, humans, microorganisms, cells, reproduction, nutrition, respiration, genetics, ecology, and how organisms interact with their environment. Tell me one Biology topic you want to start with, and I will explain it simply.";
+  }
   if (normalized.includes("mammal") || /\b(dog|cat|lion|elephant|goat|cow|rabbit|bat|whale|dolphin)\b/i.test(message)) {
     return "Mammals are animals that usually have hair or fur, give birth to live young, and feed their young with milk from mammary glands. Examples include humans, dogs, cats, goats, cows, lions, elephants, bats, whales, and dolphins.";
   }
