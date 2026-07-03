@@ -35,10 +35,11 @@ export function QuizGenerator() {
           <option>medium</option>
           <option>hard</option>
         </select>
-        <input name="count" type="number" min={1} max={10} defaultValue={5} className="rounded-md border border-slate-300 px-3 py-3" />
-        <button className="rounded-md bg-leaf-500 px-4 py-3 font-black text-white" disabled={loading}>{loading ? "Generating..." : "Generate approved-note MCQs"}</button>
+        <input name="count" type="number" min={1} max={20} defaultValue={20} className="rounded-md border border-slate-300 px-3 py-3" />
+        <button className="rounded-md bg-leaf-500 px-4 py-3 font-black text-white" disabled={loading}>{loading ? "Generating..." : "Generate 20 approved-note MCQs"}</button>
       </form>
       {raw ? <pre className="mt-4 max-h-96 overflow-auto rounded-lg bg-slate-950 p-4 text-xs text-slate-100">{raw}</pre> : null}
     </Card>
   );
 }
+

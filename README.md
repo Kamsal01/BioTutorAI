@@ -36,7 +36,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 3. In Supabase SQL Editor, run `supabase/schema.sql`.
 4. Then run `supabase/seed.sql` to add only the approved lessons from `Ifeoma_lesson updated.docx`.
 5. If your project already existed before profile pictures were added, run `supabase/profile-upgrade.sql`.
-6. Run `supabase/lesson-editor-upgrade.sql` to add lesson H5P blocks and lesson-media storage.
+6. Run `supabase/lesson-editor-upgrade.sql` to add lesson H5P blocks and lesson-media storage.`r`n7. Run `supabase/quiz-manager-upgrade.sql` if your project existed before 20-question teacher quizzes were added.
 7. In Supabase Authentication settings, enable email/password sign-in.
 8. Keep Row Level Security enabled. The schema includes RLS policies and helper functions for teacher access.
 
@@ -77,7 +77,7 @@ Open [http://localhost:3000](http://localhost:3000). Register as a student or te
 Teachers sign in with the teacher role, open `/teacher`, then use:
 
 - `/teacher/lessons` to edit lesson titles, objectives, content, key terms, diagram prompts, uploaded lesson pictures, H5P-style activities, remediation, and summaries.
-- `/teacher/quizzes` to manually add MCQs or call `/api/generate-quiz` for Gemini-assisted draft questions.
+- `/teacher/quizzes` to generate, upload, edit, and publish exactly 20 MCQs per module.
 - `/analytics` to review scores, weak topics, engagement, progress, and chatbot interaction trends.
 
 In a live classroom, wire the lesson and quiz forms to the Supabase `topics`, `lessons`, `quizzes`, and `questions` tables already defined in `supabase/schema.sql`.
@@ -117,5 +117,6 @@ supabase/             Database schema, RLS policies, and seed data
 - Add Playwright tests for auth routing, quiz scoring, and lesson offline access.
 "# BioTutorAI" 
 "# BioTutorAI" 
+
 
 

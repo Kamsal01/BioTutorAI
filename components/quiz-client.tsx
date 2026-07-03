@@ -1,20 +1,52 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Award, RotateCcw } from "lucide-react";
-import type { Lesson } from "@/lib/types";
+import type { Lesson, Question } from "@/lib/types";
 import { masteryFromScore, nextDifficulty, scoreAttempt, xpAward } from "@/lib/adaptive";
 import { Card, ProgressBar } from "@/components/ui";
 import { saveQuizProgress } from "@/lib/progress-store";
+import { fetchPublishedQuiz, getLocalQuizBank, QUESTIONS_PER_MODULE } from "@/lib/quiz-store";
 
 export function QuizClient({ lesson }: { lesson: Lesson }) {
+  const [questions, setQuestions] = useState<Question[]>(lesson.questions);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
   const [saved, setSaved] = useState(false);
-  const result = useMemo(() => scoreAttempt(answers, lesson.questions), [answers, lesson.questions]);
+  const [sourceMessage, setSourceMessage] = useState("Loading teacher quiz...");
+  const result = useMemo(() => scoreAttempt(answers, questions), [answers, questions]);
   const recommendedDifficulty = nextDifficulty(result.score);
   const xp = xpAward(result.score);
+
+  useEffect(() => {
+    let active = true;
+    const localBank = getLocalQuizBank(lesson.topicSlug);
+    const localComplete = localBank.questions.filter((question) => question.prompt.trim()).length;
+    if (localComplete >= QUESTIONS_PER_MODULE) {
+      setQuestions(localBank.questions);
+      setSourceMessage("Using the teacher-uploaded 20-question quiz saved on this browser.");
+    }
+
+    fetchPublishedQuiz(lesson.topicSlug).then((bank) => {
+      if (!active) return;
+      const complete = bank.questions.filter((question) => question.prompt.trim()).length;
+      if (complete >= QUESTIONS_PER_MODULE) {
+        setQuestions(bank.questions.slice(0, QUESTIONS_PER_MODULE));
+        setSourceMessage("Using the published teacher 20-question module quiz.");
+      } else {
+        setQuestions(lesson.questions);
+        setSourceMessage("No published 20-question teacher quiz yet. Showing starter questions for now.");
+      }
+      setAnswers({});
+      setSubmitted(false);
+      setSaved(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [lesson]);
 
   function submitQuiz() {
     setSubmitted(true);
@@ -22,7 +54,7 @@ export function QuizClient({ lesson }: { lesson: Lesson }) {
       topicSlug: lesson.topicSlug,
       title: lesson.title,
       score: result.score,
-      timeSpentMinutes: Math.max(5, lesson.questions.length * 2)
+      timeSpentMinutes: Math.max(5, questions.length * 2)
     });
     setSaved(true);
   }
@@ -33,8 +65,9 @@ export function QuizClient({ lesson }: { lesson: Lesson }) {
         <p className="text-sm font-black uppercase text-leaf-700">Adaptive quiz</p>
         <h1 className="mt-2 text-3xl font-black">{lesson.title}</h1>
         <p className="mt-2 text-slate-600">Multiple-choice only. Score 50% or above to progress; below 50% opens remediation.</p>
+        <p className="mt-3 rounded-md bg-leaf-50 px-3 py-2 text-sm font-bold text-leaf-700">{sourceMessage} Total questions: {questions.length}</p>
       </Card>
-      {lesson.questions.map((question, index) => (
+      {questions.map((question, index) => (
         <Card key={question.id}>
           <div className="flex items-start justify-between gap-4">
             <h2 className="font-black">Question {index + 1}: {question.prompt}</h2>
@@ -68,6 +101,7 @@ export function QuizClient({ lesson }: { lesson: Lesson }) {
               <div>
                 <p className="text-sm font-bold text-slate-500">Result</p>
                 <p className="text-4xl font-black">{result.score}%</p>
+                <p className="mt-1 text-sm font-semibold text-slate-600">{result.correct} of {result.total} correct</p>
               </div>
               <div className="rounded-lg bg-leaf-50 p-4 text-leaf-700">
                 <Award className="h-7 w-7" />

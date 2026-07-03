@@ -7,7 +7,7 @@ import { LESSON_NOTE_CONTEXT } from "@/lib/lesson-note-context";
 const schema = z.object({
   topic: z.string().min(2).max(120),
   difficulty: z.enum(["easy", "medium", "hard"]).default("medium"),
-  count: z.number().int().min(1).max(10).default(5)
+  count: z.number().int().min(1).max(20).default(20)
 });
 
 const GEMINI_MODELS = [
@@ -47,3 +47,4 @@ You may add simple examples or wording beyond the exact note text only when they
 
   return NextResponse.json({ error: "Could not reach a supported Gemini model. Check GEMINI_API_KEY and optionally set GEMINI_MODEL=gemini-2.0-flash." }, { status: 502 });
 }
+
