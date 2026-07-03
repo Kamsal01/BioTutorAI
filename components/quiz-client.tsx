@@ -7,7 +7,7 @@ import type { Lesson, Question } from "@/lib/types";
 import { masteryFromScore, nextDifficulty, scoreAttempt, xpAward } from "@/lib/adaptive";
 import { Card, ProgressBar } from "@/components/ui";
 import { saveQuizProgress } from "@/lib/progress-store";
-import { fetchPublishedQuiz, getLocalQuizBank, QUESTIONS_PER_MODULE } from "@/lib/quiz-store";
+import { fetchPublishedQuiz, QUESTIONS_PER_MODULE } from "@/lib/quiz-store";
 
 export function QuizClient({ lesson }: { lesson: Lesson }) {
   const [questions, setQuestions] = useState<Question[]>(lesson.questions);
@@ -21,15 +21,16 @@ export function QuizClient({ lesson }: { lesson: Lesson }) {
 
   useEffect(() => {
     let active = true;
-    const localBank = getLocalQuizBank(lesson.topicSlug);
-    const localComplete = localBank.questions.filter((question) => question.prompt.trim()).length;
-    if (localComplete >= QUESTIONS_PER_MODULE) {
-      setQuestions(localBank.questions);
-      setSourceMessage("Using the teacher-uploaded 20-question quiz saved on this browser.");
-    }
-
-    fetchPublishedQuiz(lesson.topicSlug).then((bank) => {
+    fetchPublishedQuiz(lesson.topicSlug, false).then((bank) => {
       if (!active) return;
+      if (!bank) {
+        setQuestions(lesson.questions);
+        setSourceMessage("No published 20-question teacher quiz yet. Showing starter questions for now.");
+        setAnswers({});
+        setSubmitted(false);
+        setSaved(false);
+        return;
+      }
       const complete = bank.questions.filter((question) => question.prompt.trim()).length;
       if (complete >= QUESTIONS_PER_MODULE) {
         setQuestions(bank.questions.slice(0, QUESTIONS_PER_MODULE));
@@ -127,3 +128,5 @@ export function QuizClient({ lesson }: { lesson: Lesson }) {
     </div>
   );
 }
+
+

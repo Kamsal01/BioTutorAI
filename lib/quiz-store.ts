@@ -98,12 +98,12 @@ export function getLocalQuizBank(topicSlug: string) {
   return loadQuizBanks().find((bank) => bank.topicSlug === topicSlug) ?? createDefaultBank(topicSlug);
 }
 
-export async function fetchPublishedQuiz(topicSlug: string) {
+export async function fetchPublishedQuiz(topicSlug: string, fallbackToLocal = true) {
   try {
     const response = await fetch(`/api/quizzes/${encodeURIComponent(topicSlug)}`, { cache: "no-store" });
-    if (!response.ok) return getLocalQuizBank(topicSlug);
+    if (!response.ok) return fallbackToLocal ? getLocalQuizBank(topicSlug) : null;
     const data = await response.json() as { bank?: QuizBank | null };
-    if (!data.bank) return getLocalQuizBank(topicSlug);
+    if (!data.bank) return fallbackToLocal ? getLocalQuizBank(topicSlug) : null;
     const bank = {
       ...data.bank,
       questions: data.bank.questions.map((question, index) => normalizeQuestion(question, topicSlug, index))
@@ -111,7 +111,7 @@ export async function fetchPublishedQuiz(topicSlug: string) {
     saveQuizBank(bank);
     return bank;
   } catch {
-    return getLocalQuizBank(topicSlug);
+    return fallbackToLocal ? getLocalQuizBank(topicSlug) : null;
   }
 }
 
@@ -199,4 +199,5 @@ export function parseQuestionUpload(raw: string, topicSlug: string): Question[] 
 function isDifficulty(value: unknown): value is Difficulty {
   return value === "easy" || value === "medium" || value === "hard";
 }
+
 

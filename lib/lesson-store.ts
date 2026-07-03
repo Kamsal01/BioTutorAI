@@ -76,19 +76,19 @@ export function getEditableLesson(slug: string) {
   return loadEditableLessons().find((lesson) => lesson.topicSlug === slug);
 }
 
-export async function fetchApprovedLesson(baseLesson: Lesson) {
+export async function fetchApprovedLesson(baseLesson: Lesson, fallbackToLocal = true) {
   try {
     const response = await fetch(`/api/lessons/${encodeURIComponent(baseLesson.topicSlug)}`, {
       cache: "no-store"
     });
-    if (!response.ok) return getEditableLesson(baseLesson.topicSlug);
+    if (!response.ok) return fallbackToLocal ? getEditableLesson(baseLesson.topicSlug) : null;
     const data = await response.json() as { lesson?: Partial<EditableLesson> | null };
-    if (!data.lesson) return getEditableLesson(baseLesson.topicSlug);
+    if (!data.lesson) return fallbackToLocal ? getEditableLesson(baseLesson.topicSlug) : null;
     const merged = mergeEditableLesson(baseLesson, { ...data.lesson, approvalStatus: "approved" });
     saveEditableLesson(merged);
     return merged;
   } catch {
-    return getEditableLesson(baseLesson.topicSlug);
+    return fallbackToLocal ? getEditableLesson(baseLesson.topicSlug) : null;
   }
 }
 
@@ -160,4 +160,5 @@ export function typeLabel(type: H5PBlock["type"]) {
       return "Drag and Sort";
   }
 }
+
 

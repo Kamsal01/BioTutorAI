@@ -99,15 +99,19 @@ export function TeacherLessonEditor() {
     if (!draft) return;
     setPublishing(true);
     const approvedLesson = { ...draft, approvalStatus: "approved" as const };
-    const nextLessons = saveEditableLesson(approvedLesson);
-    setLessons(nextLessons);
-    setDraft(nextLessons.find((lesson) => lesson.topicSlug === draft.topicSlug) ?? approvedLesson);
 
     try {
       await publishEditableLesson(approvedLesson);
-      setMessage("Lesson approved and published. Students will see the updated content after opening or refreshing the lesson.");
+      const nextLessons = saveEditableLesson(approvedLesson);
+      setLessons(nextLessons);
+      setDraft(nextLessons.find((lesson) => lesson.topicSlug === draft.topicSlug) ?? approvedLesson);
+      setMessage("Lesson approved and published online. Students in other browsers will see it after refreshing the lesson.");
     } catch (error) {
-      setMessage(error instanceof Error ? `Saved locally, but Supabase publish failed: ${error.message}` : "Saved locally, but Supabase publish failed.");
+      const draftLesson = { ...draft, approvalStatus: "draft" as const };
+      const nextLessons = saveEditableLesson(draftLesson);
+      setLessons(nextLessons);
+      setDraft(nextLessons.find((lesson) => lesson.topicSlug === draft.topicSlug) ?? draftLesson);
+      setMessage(error instanceof Error ? `Not published online: ${error.message}` : "Not published online. Please try again.");
     } finally {
       setPublishing(false);
     }
@@ -274,6 +278,7 @@ function readFileAsDataUrl(file: File) {
     reader.readAsDataURL(file);
   });
 }
+
 
 
 

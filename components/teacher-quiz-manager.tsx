@@ -70,12 +70,13 @@ export function TeacherQuizManager() {
     if (!draft) return;
     setPublishing(true);
     try {
+      await publishQuizBank(draft);
       const nextBanks = saveQuizBank(draft);
       setBanks(nextBanks);
-      await publishQuizBank(draft);
-      setMessage(`Published ${QUESTIONS_PER_MODULE} questions for this module. Students will receive this quiz after refresh.`);
+      setDraft(nextBanks.find((bank) => bank.topicSlug === draft.topicSlug) ?? draft);
+      setMessage(`Published ${QUESTIONS_PER_MODULE} questions online. Students in other browsers will receive this quiz after refresh.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not publish quiz.");
+      setMessage(error instanceof Error ? `Not published online: ${error.message}` : "Could not publish quiz online.");
     } finally {
       setPublishing(false);
     }
@@ -200,3 +201,4 @@ export function TeacherQuizManager() {
     </div>
   );
 }
+
