@@ -62,8 +62,8 @@ export function TeacherLessonEditor() {
       setMessage("Please upload an image file for the lesson picture.");
       return;
     }
-    if (file.size > 3 * 1024 * 1024) {
-      setMessage("Please choose a lesson image below 3 MB.");
+    if (file.size > 900 * 1024) {
+      setMessage("Please choose a lesson image below 900 KB so it can publish online quickly.");
       return;
     }
     const imageUrl = await readFileAsDataUrl(file);
@@ -274,5 +274,6 @@ function readFileAsDataUrl(file: File) {
     reader.readAsDataURL(file);
   });
 }
+
 
 

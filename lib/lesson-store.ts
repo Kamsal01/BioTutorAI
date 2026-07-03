@@ -9,6 +9,8 @@ export type EditableLesson = Lesson & {
 };
 
 const STORAGE_KEY = "biotutor-teacher-lessons";
+const PUBLISH_TIMEOUT_MS = 30000;
+const MAX_INLINE_IMAGE_LENGTH = 1200000;
 
 function canUseStorage() {
   return typeof window !== "undefined" && Boolean(window.localStorage);
@@ -91,31 +93,48 @@ export async function fetchApprovedLesson(baseLesson: Lesson) {
 }
 
 export async function publishEditableLesson(lesson: EditableLesson) {
-  const response = await fetch(`/api/lessons/${encodeURIComponent(lesson.topicSlug)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title: lesson.title,
-      introduction: lesson.introduction,
-      objectives: lesson.objectives,
-      content: lesson.content,
-      keyTerms: lesson.keyTerms,
-      diagramPrompt: lesson.diagramPrompt,
-      diagramImageUrl: lesson.diagramImageUrl ?? "",
-      activity: lesson.activity,
-      h5pBlocks: lesson.h5pBlocks ?? [],
-      remediation: lesson.remediation,
-      summary: lesson.summary,
-      approvalStatus: lesson.approvalStatus
-    })
-  });
-
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({ error: "Could not publish lesson" })) as { error?: string };
-    throw new Error(data.error ?? "Could not publish lesson");
+  if ((lesson.diagramImageUrl ?? "").length > MAX_INLINE_IMAGE_LENGTH) {
+    throw new Error("The lesson picture is too large for online publishing. Please upload a smaller image below about 900 KB, then approve again.");
   }
 
-  return response.json();
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), PUBLISH_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`/api/lessons/${encodeURIComponent(lesson.topicSlug)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        title: lesson.title,
+        introduction: lesson.introduction,
+        objectives: lesson.objectives,
+        content: lesson.content,
+        keyTerms: lesson.keyTerms,
+        diagramPrompt: lesson.diagramPrompt,
+        diagramImageUrl: lesson.diagramImageUrl ?? "",
+        activity: lesson.activity,
+        h5pBlocks: lesson.h5pBlocks ?? [],
+        remediation: lesson.remediation,
+        summary: lesson.summary,
+        approvalStatus: lesson.approvalStatus
+      })
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ error: "Could not publish lesson" })) as { error?: string };
+      throw new Error(data.error ?? "Could not publish lesson");
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Publishing timed out. Check that SUPABASE_SERVICE_ROLE_KEY is set in Vercel, then redeploy and try again.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 export function createH5PBlock(type: H5PBlock["type"]): H5PBlock {
@@ -141,3 +160,4 @@ export function typeLabel(type: H5PBlock["type"]) {
       return "Drag and Sort";
   }
 }
+

@@ -5,6 +5,7 @@ import type { Difficulty, Question } from "@/lib/types";
 
 const STORAGE_KEY = "biotutor-teacher-quizzes";
 export const QUESTIONS_PER_MODULE = 20;
+const PUBLISH_TIMEOUT_MS = 30000;
 
 export type QuizBank = {
   topicSlug: string;
@@ -120,18 +121,31 @@ export async function publishQuizBank(bank: QuizBank) {
     throw new Error(`Each module must have exactly ${QUESTIONS_PER_MODULE} complete questions before publishing.`);
   }
 
-  const response = await fetch(`/api/quizzes/${encodeURIComponent(bank.topicSlug)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...bank, questions: complete })
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), PUBLISH_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({ error: "Could not publish quiz" })) as { error?: string };
-    throw new Error(data.error ?? "Could not publish quiz");
+  try {
+    const response = await fetch(`/api/quizzes/${encodeURIComponent(bank.topicSlug)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({ ...bank, questions: complete })
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ error: "Could not publish quiz" })) as { error?: string };
+      throw new Error(data.error ?? "Could not publish quiz");
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Publishing timed out. Check that SUPABASE_SERVICE_ROLE_KEY is set in Vercel, then redeploy and try again.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
-
-  return response.json();
 }
 
 export function completeQuestions(questions: Question[]) {
@@ -185,3 +199,4 @@ export function parseQuestionUpload(raw: string, topicSlug: string): Question[] 
 function isDifficulty(value: unknown): value is Difficulty {
   return value === "easy" || value === "medium" || value === "hard";
 }
+
