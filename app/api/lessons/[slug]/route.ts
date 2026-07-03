@@ -31,11 +31,30 @@ const lessonSchema = z.object({
 export async function GET(_request: Request, context: { params: Promise<{ slug: string }> }) {
   const { slug } = await context.params;
   const supabase = await createClient();
+  const adminClient = createAdminClient();
+  const readSupabase = adminClient ?? supabase;
+  const baseTopic = getTopic(slug);
 
-  const { data: topic } = await supabase.from("topics").select("id, slug").eq("slug", slug).maybeSingle();
+  let { data: topic } = await readSupabase.from("topics").select("id, slug").eq("slug", slug).maybeSingle();
+
+  if (!topic && baseTopic && adminClient) {
+    const inserted = await adminClient
+      .from("topics")
+      .insert({
+        slug,
+        title: baseTopic.title,
+        description: baseTopic.description,
+        level: baseTopic.level,
+        estimated_minutes: baseTopic.estimatedMinutes
+      })
+      .select("id, slug")
+      .single();
+    topic = inserted.data;
+  }
+
   if (!topic) return NextResponse.json({ lesson: null });
 
-  const { data: lesson } = await supabase
+  const { data: lesson } = await readSupabase
     .from("lessons")
     .select("title, introduction, objectives, content, key_terms, diagram_url, diagram_prompt, h5p_blocks, activity, remediation, summary, approval_status, updated_at")
     .eq("topic_id", topic.id)
@@ -146,4 +165,3 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
   if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
   return NextResponse.json({ ok: true, id: result.data.id });
 }
-
