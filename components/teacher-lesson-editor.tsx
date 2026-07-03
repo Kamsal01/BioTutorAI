@@ -228,9 +228,9 @@ export function TeacherLessonEditor() {
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   <input value={block.title} onChange={(event) => updateH5PBlock(block.id, { title: event.target.value })} className="rounded-md border border-slate-300 px-3 py-3 font-medium" placeholder="Activity title" />
-                  <input value={block.answer} onChange={(event) => updateH5PBlock(block.id, { answer: event.target.value })} className="rounded-md border border-slate-300 px-3 py-3 font-medium" placeholder="Correct answer or order" />
+                  <input value={block.answer} onChange={(event) => updateH5PBlock(block.id, { answer: event.target.value })} className="rounded-md border border-slate-300 px-3 py-3 font-medium" placeholder="Correct answer. For sorting, write order as item 1 -> item 2 -> item 3" />
                   <textarea value={block.prompt} onChange={(event) => updateH5PBlock(block.id, { prompt: event.target.value })} rows={3} className="rounded-md border border-slate-300 px-3 py-3 font-medium md:col-span-2" placeholder="Prompt or instruction" />
-                  <textarea value={block.items.join("\n")} onChange={(event) => updateH5PBlock(block.id, { items: event.target.value.split("\n").filter(Boolean) })} rows={4} className="rounded-md border border-slate-300 px-3 py-3 font-medium md:col-span-2" placeholder="Options, cards, words, or sort items. One per line." />
+                  <textarea value={block.items.join("\n")} onChange={(event) => updateH5PBlock(block.id, { items: event.target.value.split("\n").filter(Boolean) })} rows={4} className="rounded-md border border-slate-300 px-3 py-3 font-medium md:col-span-2" placeholder="Options/items, one per line. Flashcards can use Term | Meaning." />
                 </div>
               </div>
             ))}
@@ -274,4 +274,5 @@ function readFileAsDataUrl(file: File) {
     reader.readAsDataURL(file);
   });
 }
+
 
