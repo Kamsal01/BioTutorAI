@@ -8,7 +8,7 @@ type Message = { role: "user" | "assistant"; content: string };
 
 export function TutorChat() {
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hi, I am BioTutor. I can help with conservation of natural resources, pest and disease control, and reproduction in birds and mammals from this course note." }
+    { role: "assistant", content: "Hi, I am BioTutor. Ask me any Biology question, and I will explain it clearly step by step." }
   ]);
   const [loading, setLoading] = useState(false);
 
@@ -42,9 +42,10 @@ export function TutorChat() {
         {loading ? <p className="text-sm font-semibold text-slate-500">BioTutor is thinking...</p> : null}
       </div>
       <form action={send} className="flex gap-3 border-t border-slate-200 p-4">
-        <input name="message" placeholder="Ask about the approved SSII lesson note..." className="flex-1 rounded-md border border-slate-300 px-4 py-3" />
+        <input name="message" placeholder="Ask any Biology question..." className="flex-1 rounded-md border border-slate-300 px-4 py-3" />
         <button className="rounded-md bg-leaf-500 px-4 text-white hover:bg-leaf-700" aria-label="Send"><Send className="h-5 w-5" /></button>
       </form>
     </Card>
   );
 }
+

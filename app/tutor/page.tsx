@@ -9,11 +9,12 @@ export default function TutorPage() {
         <Card>
           <p className="font-black uppercase text-leaf-700">AI tutor</p>
           <h1 className="mt-2 text-3xl font-black">Ask BioTutor</h1>
-          <p className="mt-3 text-slate-600">BioTutor uses the SSII lesson note as its foundation and can add helpful explanations within conservation, pest and disease control, and reproduction in birds and mammals.</p>
-          <div className="mt-5 rounded-lg bg-leaf-50 p-4 text-sm font-semibold text-leaf-700">Try: “Explain soil conservation methods from the lesson note.”</div>
+          <p className="mt-3 text-slate-600">BioTutor answers Biology questions naturally while keeping the conversation focused on Biology learning.</p>
+          <div className="mt-5 rounded-lg bg-leaf-50 p-4 text-sm font-semibold text-leaf-700">Try: &quot;Explain soil conservation methods step by step.&quot;</div>
         </Card>
         <TutorChat />
       </div>
     </Shell>
   );
 }
+
