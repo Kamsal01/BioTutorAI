@@ -1,9 +1,13 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getLesson, getTopic } from "@/lib/content";
 
 const QUESTIONS_PER_MODULE = 20;
+
+type Supabase = SupabaseClient;
 
 const questionSchema = z.object({
   id: z.string().min(1).max(120),
@@ -28,11 +32,14 @@ export async function GET(_request: Request, context: { params: Promise<{ slug: 
   const { data: topic } = await supabase.from("topics").select("id, slug").eq("slug", slug).maybeSingle();
   if (!topic) return NextResponse.json({ bank: null });
 
+  const lessonIds = await lessonIdsForTopic(supabase, topic.id);
+  if (!lessonIds.length) return NextResponse.json({ bank: null });
+
   const { data: quiz } = await supabase
     .from("quizzes")
     .select("id, title, created_at")
     .eq("quiz_type", "adaptive")
-    .in("lesson_id", await lessonIdsForTopic(supabase, topic.id))
+    .in("lesson_id", lessonIds)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -84,13 +91,16 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     return NextResponse.json({ error: "Only teachers can publish quizzes" }, { status: 403 });
   }
 
-  const topic = await ensureTopic(supabase, slug, baseTopic, user.id);
+  const adminClient = createAdminClient();
+  if (!adminClient) return NextResponse.json({ error: "Missing SUPABASE_SERVICE_ROLE_KEY in Vercel environment variables." }, { status: 500 });
+  const writeSupabase = adminClient;
+  const topic = await ensureTopic(writeSupabase, slug, baseTopic, user.id);
   if (!topic.id) return NextResponse.json({ error: "Could not save topic" }, { status: 500 });
 
-  const lesson = await ensureLesson(supabase, topic.id, baseLesson, user.id);
+  const lesson = await ensureLesson(writeSupabase, topic.id, baseLesson, user.id);
   if (!lesson.id) return NextResponse.json({ error: "Could not save lesson for quiz" }, { status: 500 });
 
-  const { data: quiz, error: quizError } = await supabase
+  const { data: quiz, error: quizError } = await writeSupabase
     .from("quizzes")
     .insert({
       lesson_id: lesson.id,
@@ -103,7 +113,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
 
   if (quizError || !quiz) return NextResponse.json({ error: quizError?.message ?? "Could not save quiz" }, { status: 500 });
 
-  const { error: questionError } = await supabase.from("questions").insert(parsed.data.questions.map((question) => ({
+  const { error: questionError } = await writeSupabase.from("questions").insert(parsed.data.questions.map((question) => ({
     quiz_id: quiz.id,
     question_text: question.prompt,
     options: question.options,
@@ -117,12 +127,12 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
   return NextResponse.json({ ok: true, id: quiz.id });
 }
 
-async function lessonIdsForTopic(supabase: Awaited<ReturnType<typeof createClient>>, topicId: string) {
+async function lessonIdsForTopic(supabase: Supabase, topicId: string) {
   const { data } = await supabase.from("lessons").select("id").eq("topic_id", topicId);
   return data?.map((lesson) => lesson.id) ?? [];
 }
 
-async function ensureTopic(supabase: Awaited<ReturnType<typeof createClient>>, slug: string, topic: NonNullable<ReturnType<typeof getTopic>>, userId: string) {
+async function ensureTopic(supabase: Supabase, slug: string, topic: NonNullable<ReturnType<typeof getTopic>>, userId: string) {
   const existing = await supabase.from("topics").select("id").eq("slug", slug).maybeSingle();
   if (existing.data) return existing.data;
 
@@ -137,7 +147,7 @@ async function ensureTopic(supabase: Awaited<ReturnType<typeof createClient>>, s
   return inserted.data ?? { id: "" };
 }
 
-async function ensureLesson(supabase: Awaited<ReturnType<typeof createClient>>, topicId: string, lesson: NonNullable<ReturnType<typeof getLesson>>, userId: string) {
+async function ensureLesson(supabase: Supabase, topicId: string, lesson: NonNullable<ReturnType<typeof getLesson>>, userId: string) {
   const existing = await supabase.from("lessons").select("id").eq("topic_id", topicId).order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (existing.data) return existing.data;
 
@@ -160,3 +170,4 @@ async function ensureLesson(supabase: Awaited<ReturnType<typeof createClient>>, 
   }).select("id").single();
   return inserted.data ?? { id: "" };
 }
+

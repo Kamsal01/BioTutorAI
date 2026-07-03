@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getLesson, getTopic } from "@/lib/content";
 
@@ -31,12 +32,7 @@ export async function GET(_request: Request, context: { params: Promise<{ slug: 
   const { slug } = await context.params;
   const supabase = await createClient();
 
-  const { data: topic } = await supabase
-    .from("topics")
-    .select("id, slug")
-    .eq("slug", slug)
-    .maybeSingle();
-
+  const { data: topic } = await supabase.from("topics").select("id, slug").eq("slug", slug).maybeSingle();
   if (!topic) return NextResponse.json({ lesson: null });
 
   const { data: lesson } = await supabase
@@ -90,14 +86,14 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     return NextResponse.json({ error: "Only teachers can publish lessons" }, { status: 403 });
   }
 
-  let { data: topic, error: topicError } = await supabase
-    .from("topics")
-    .select("id")
-    .eq("slug", slug)
-    .maybeSingle();
+  const adminClient = createAdminClient();
+  if (!adminClient) return NextResponse.json({ error: "Missing SUPABASE_SERVICE_ROLE_KEY in Vercel environment variables." }, { status: 500 });
+  const writeSupabase = adminClient;
+
+  let { data: topic, error: topicError } = await writeSupabase.from("topics").select("id").eq("slug", slug).maybeSingle();
 
   if (!topic) {
-    const inserted = await supabase
+    const inserted = await writeSupabase
       .from("topics")
       .insert({
         slug,
@@ -135,7 +131,7 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     updated_at: new Date().toISOString()
   };
 
-  const { data: existing } = await supabase
+  const { data: existing } = await writeSupabase
     .from("lessons")
     .select("id")
     .eq("topic_id", topic.id)
@@ -144,8 +140,8 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     .maybeSingle();
 
   const result = existing
-    ? await supabase.from("lessons").update(payload).eq("id", existing.id).select("id").single()
-    : await supabase.from("lessons").insert(payload).select("id").single();
+    ? await writeSupabase.from("lessons").update(payload).eq("id", existing.id).select("id").single()
+    : await writeSupabase.from("lessons").insert(payload).select("id").single();
 
   if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
   return NextResponse.json({ ok: true, id: result.data.id });

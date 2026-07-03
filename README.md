@@ -40,7 +40,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 7. In Supabase Authentication settings, enable email/password sign-in.
 8. Keep Row Level Security enabled. The schema includes RLS policies and helper functions for teacher access.
 
-The profile upgrade creates public `avatars` storage and lets each signed-in user upload only inside their own avatar folder.
+The profile upgrade creates public `avatars` storage and lets each signed-in user upload only inside their own avatar folder.`r`n`r`nTeacher publishing online requires `SUPABASE_SERVICE_ROLE_KEY` in Vercel. Use the Supabase service role key only as a server environment variable; never expose it with `NEXT_PUBLIC_`.
 
 ## Gemini Setup
 
@@ -67,7 +67,7 @@ Open [http://localhost:3000](http://localhost:3000). Register as a student or te
 3. Add these environment variables in Vercel Project Settings:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY` if you add admin-only server jobs
+   - `SUPABASE_SERVICE_ROLE_KEY` required for teacher lesson and quiz publishing online
    - `GEMINI_API_KEY`
    - `NEXT_PUBLIC_APP_URL`
 4. Deploy. Run the Supabase SQL files in your production Supabase project before inviting users.
@@ -117,6 +117,7 @@ supabase/             Database schema, RLS policies, and seed data
 - Add Playwright tests for auth routing, quiz scoring, and lesson offline access.
 "# BioTutorAI" 
 "# BioTutorAI" 
+
 
 
 
