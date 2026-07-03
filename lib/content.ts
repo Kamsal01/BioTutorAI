@@ -1,3 +1,4 @@
+import { starterQuestionBanks } from "@/lib/starter-questions";
 import type { Lesson, StudentProgress, Topic } from "@/lib/types";
 
 export const topics: Topic[] = [
@@ -48,7 +49,7 @@ export const topics: Topic[] = [
   }
 ];
 
-export const lessons: Lesson[] = [
+const baseLessons: Lesson[] = [
   {
     id: "lesson-one-conservation-natural-resources",
     topicSlug: "lesson-one-conservation-natural-resources",
@@ -343,6 +344,11 @@ export const lessons: Lesson[] = [
     ]
   }
 ];
+
+export const lessons: Lesson[] = baseLessons.map((lesson) => ({
+  ...lesson,
+  questions: starterQuestionBanks[lesson.topicSlug] ?? lesson.questions
+}));
 
 export const demoProgress: StudentProgress[] = [];
 
