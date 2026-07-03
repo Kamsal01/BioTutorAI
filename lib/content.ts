@@ -190,7 +190,8 @@ export const lessons: Lesson[] = [
       { term: "Pest control", meaning: "A method used to reduce or prevent pest damage." },
       { term: "Disease control", meaning: "A method used to reduce or prevent plant disease." }
     ],
-    diagramPrompt: "Approved-note diagram placeholder: pest examples, disease examples, and control methods.",
+    diagramPrompt: "Pests, plant diseases, symptoms, effects, and approved control methods infographic.",
+    diagramImageUrl: "/lessons/lesson-three-pests-diseases-control.png",
     activity: "Choose two control methods from the note and state one benefit and one drawback of each.",
     remediation: "Review the difference between pests and plant diseases before comparing control methods.",
     summary: "Pests and plant diseases can reduce plant productivity. Control methods help, but each method must be judged by its benefits and drawbacks.",
