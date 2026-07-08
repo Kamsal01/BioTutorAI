@@ -2,6 +2,8 @@
 
 BioTutor ITS is a production-ready foundation for a Biology Intelligent Tutoring System for secondary school students and Biology teachers. It uses Next.js, React, TypeScript, Tailwind CSS, Supabase, Gemini, adaptive quiz logic, gamification, teacher analytics, and PWA lesson caching.
 
+For teacher, student, admin, Supabase, Vercel, and troubleshooting instructions, see [USER_MANUAL.md](./USER_MANUAL.md).
+
 ## Features
 
 - Student and teacher authentication with Supabase Auth
@@ -116,8 +118,5 @@ supabase/             Database schema, RLS policies, and seed data
 - Add CSV export from teacher analytics.
 - Add Playwright tests for auth routing, quiz scoring, and lesson offline access.
 "# BioTutorAI" 
-"# BioTutorAI" 
-
-
-
+"# BioTutorAI"
 
