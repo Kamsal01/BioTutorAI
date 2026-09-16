@@ -1,5 +1,7 @@
 "use client";
 
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured } from "@/lib/firebase/client";
 import { lessons } from "@/lib/content";
 import type { H5PBlock, Lesson } from "@/lib/types";
 
@@ -9,7 +11,6 @@ export type EditableLesson = Lesson & {
 };
 
 const STORAGE_KEY = "biotutor-teacher-lessons";
-const PUBLISH_TIMEOUT_MS = 30000;
 const MAX_INLINE_IMAGE_LENGTH = 1200000;
 
 function canUseStorage() {
@@ -77,14 +78,14 @@ export function getEditableLesson(slug: string) {
 }
 
 export async function fetchApprovedLesson(baseLesson: Lesson, fallbackToLocal = true) {
+  if (!isFirebaseConfigured()) return fallbackToLocal ? getEditableLesson(baseLesson.topicSlug) : null;
+
   try {
-    const response = await fetch(`/api/lessons/${encodeURIComponent(baseLesson.topicSlug)}`, {
-      cache: "no-store"
-    });
-    if (!response.ok) return fallbackToLocal ? getEditableLesson(baseLesson.topicSlug) : null;
-    const data = await response.json() as { lesson?: Partial<EditableLesson> | null };
-    if (!data.lesson) return fallbackToLocal ? getEditableLesson(baseLesson.topicSlug) : null;
-    const merged = mergeEditableLesson(baseLesson, { ...data.lesson, approvalStatus: "approved" });
+    const snapshot = await getDoc(doc(getFirebaseDb(), "lessons", baseLesson.topicSlug));
+    if (!snapshot.exists()) return fallbackToLocal ? getEditableLesson(baseLesson.topicSlug) : null;
+    const data = snapshot.data() as Partial<EditableLesson> & { published?: boolean; approvalStatus?: string };
+    if (!data.published || data.approvalStatus !== "approved") return fallbackToLocal ? getEditableLesson(baseLesson.topicSlug) : null;
+    const merged = mergeEditableLesson(baseLesson, { ...data, approvalStatus: "approved" });
     saveEditableLesson(merged);
     return merged;
   } catch {
@@ -93,48 +94,37 @@ export async function fetchApprovedLesson(baseLesson: Lesson, fallbackToLocal = 
 }
 
 export async function publishEditableLesson(lesson: EditableLesson) {
+  if (!isFirebaseConfigured()) {
+    throw new Error("Firebase is not connected yet. Add Firebase environment variables in Vercel, then redeploy and try again.");
+  }
+
   if ((lesson.diagramImageUrl ?? "").length > MAX_INLINE_IMAGE_LENGTH) {
     throw new Error("The lesson picture is too large for online publishing. Please upload a smaller image below about 900 KB, then approve again.");
   }
 
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), PUBLISH_TIMEOUT_MS);
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error("Please sign in as a teacher before publishing lessons.");
 
-  try {
-    const response = await fetch(`/api/lessons/${encodeURIComponent(lesson.topicSlug)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        title: lesson.title,
-        introduction: lesson.introduction,
-        objectives: lesson.objectives,
-        content: lesson.content,
-        keyTerms: lesson.keyTerms,
-        diagramPrompt: lesson.diagramPrompt,
-        diagramImageUrl: lesson.diagramImageUrl ?? "",
-        activity: lesson.activity,
-        h5pBlocks: lesson.h5pBlocks ?? [],
-        remediation: lesson.remediation,
-        summary: lesson.summary,
-        approvalStatus: lesson.approvalStatus
-      })
-    });
+  await setDoc(doc(getFirebaseDb(), "lessons", lesson.topicSlug), {
+    topicSlug: lesson.topicSlug,
+    title: lesson.title,
+    introduction: lesson.introduction,
+    objectives: lesson.objectives,
+    content: lesson.content,
+    keyTerms: lesson.keyTerms,
+    diagramPrompt: lesson.diagramPrompt,
+    diagramImageUrl: lesson.diagramImageUrl ?? "",
+    activity: lesson.activity,
+    h5pBlocks: lesson.h5pBlocks ?? [],
+    remediation: lesson.remediation,
+    summary: lesson.summary,
+    approvalStatus: lesson.approvalStatus,
+    published: lesson.approvalStatus === "approved",
+    updatedBy: user.uid,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({ error: "Could not publish lesson" })) as { error?: string };
-      throw new Error(data.error ?? "Could not publish lesson");
-    }
-
-    return response.json();
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("Publishing timed out. Check that SUPABASE_SERVICE_ROLE_KEY is set in Vercel, then redeploy and try again.");
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeout);
-  }
+  return { ok: true, id: lesson.topicSlug };
 }
 
 export function createH5PBlock(type: H5PBlock["type"]): H5PBlock {
@@ -160,4 +150,3 @@ export function typeLabel(type: H5PBlock["type"]) {
       return "Drag and Sort";
   }
 }
-

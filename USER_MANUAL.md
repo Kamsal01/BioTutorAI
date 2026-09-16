@@ -2,7 +2,7 @@
 
 ## 1. What BioTutor ITS Is
 
-BioTutor ITS is a Biology Intelligent Tutoring System for secondary school students and Biology teachers. It helps students read Biology lessons, ask an AI tutor questions, take quizzes, earn progress/XP, and review learning history. Teachers can manage lessons, upload lesson pictures, create H5P-style activities, publish quizzes, and monitor learning.
+BioTutor ITS is a Biology Intelligent Tutoring System for secondary school students and Biology teachers. Students read Biology lessons, ask an AI tutor questions, take quizzes, earn XP, and track progress. Teachers manage lessons, upload pictures, add H5P-style activities, publish quizzes, and monitor learning.
 
 The system has two main user roles:
 
@@ -11,61 +11,112 @@ The system has two main user roles:
 
 ## 2. First-Time Setup For The School/Admin
 
-Before students and teachers use the app online, the admin should confirm these are ready:
+Before students and teachers use the online app, confirm these are ready:
 
-1. Supabase project is connected.
-2. Supabase SQL schema has been run.
-3. Environment variables are added in Vercel.
-4. Vercel has redeployed successfully.
-5. Teacher accounts have role `teacher`.
-6. Student accounts have role `student`.
+1. Firebase project is created.
+2. Firebase Email/Password Authentication is enabled.
+3. Firestore Database is created.
+4. Firebase Storage is enabled.
+5. Firebase environment variables are added in Vercel.
+6. Vercel has redeployed successfully.
+7. Teacher accounts have role `teacher` in their Firestore profile document.
+8. Student accounts have role `student` in their Firestore profile document.
 
 Required Vercel environment variables:
 
 ```text
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
+NEXT_PUBLIC_FIREBASE_API_KEY
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+NEXT_PUBLIC_FIREBASE_PROJECT_ID
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+NEXT_PUBLIC_FIREBASE_APP_ID
 GEMINI_API_KEY
+GEMINI_MODEL
 NEXT_PUBLIC_APP_URL
 ```
 
-Important: `SUPABASE_SERVICE_ROLE_KEY` and `GEMINI_API_KEY` must not start with `NEXT_PUBLIC_`.
+Important: `GEMINI_API_KEY` must not start with `NEXT_PUBLIC_`.
 
-## 3. How To Register
+## 3. Firebase Setup
+
+### 3.1 Create Firebase Project
+
+1. Go to Firebase Console.
+2. Click **Add project**.
+3. Create or select a Google Analytics option.
+4. Finish project setup.
+
+### 3.2 Create Web App
+
+1. In Firebase project overview, click the web icon `</>`.
+2. Register the app name, for example `BioTutor ITS`.
+3. Copy the Firebase config values.
+4. Add those values to `.env.local` locally and to Vercel environment variables online.
+
+### 3.3 Enable Authentication
+
+1. Go to **Build > Authentication**.
+2. Click **Get started**.
+3. Open **Sign-in method**.
+4. Enable **Email/Password**.
+5. Save.
+
+### 3.4 Create Firestore Database
+
+1. Go to **Build > Firestore Database**.
+2. Click **Create database**.
+3. Choose production mode or test mode for setup.
+4. Select a region.
+5. Create the database.
+6. Add the rules from `firebase-firestore.rules`.
+
+### 3.5 Enable Firebase Storage
+
+1. Go to **Build > Storage**.
+2. Click **Get started**.
+3. Create the default bucket.
+4. Add the rules from `firebase-storage.rules`.
+
+## 4. How To Register
 
 1. Open the BioTutor ITS website.
 2. Click **Create an account**.
 3. Enter full name, email, and password.
-4. Choose the correct role: **Student** or **Teacher**.
+4. Choose **Student** or **Teacher**.
 5. Submit the form.
-6. If email confirmation is enabled in Supabase, open the email inbox and confirm the account.
-7. Return to the app and log in.
 
-If login says invalid credentials, check:
+The app creates:
 
-- The email is typed correctly.
-- The password is correct.
-- The account has been confirmed if Supabase email confirmation is enabled.
-- The user still exists in Supabase Authentication.
+- A Firebase Auth account.
+- A Firestore document in `profiles/{userId}`.
 
-## 4. How To Log In
+If registration fails, check that Firebase Auth Email/Password is enabled and Firebase environment variables are correct.
+
+## 5. How To Log In
 
 1. Open `/login`.
 2. Enter email and password.
-3. Select the correct role tab: **Student** or **Teacher**.
+3. Select the correct role tab.
 4. Click **Sign in**.
 
 After login:
 
-- Students go to the student dashboard.
-- Teachers go to the teacher dashboard.
+- Students go to `/student`.
+- Teachers go to `/teacher`.
 
-## 5. Student Manual
+If login fails, check:
 
-### 5.1 Student Dashboard
+- The user exists in Firebase Authentication.
+- The email and password are correct.
+- Firebase environment variables are correct in Vercel.
+- Vercel was redeployed after adding Firebase variables.
 
-The student dashboard shows:
+## 6. Student Manual
+
+### 6.1 Student Dashboard
+
+The dashboard shows:
 
 - Biology lesson topics
 - XP points
@@ -78,37 +129,34 @@ The student dashboard shows:
 
 Students should start from Lesson One and continue lesson by lesson.
 
-### 5.2 Opening A Lesson
+### 6.2 Opening A Lesson
 
 1. Log in as a student.
 2. Open the student dashboard.
 3. Click a lesson topic.
-4. Read the learning objectives.
-5. Study the main lesson content.
-6. Review diagrams or lesson pictures.
-7. Complete any H5P-style activities.
-8. Use remediation if needed.
-9. Click **Take quiz**.
+4. Read objectives and lesson content.
+5. Review diagrams and lesson pictures.
+6. Complete H5P-style activities.
+7. Use remediation if needed.
+8. Click **Take quiz**.
 
-### 5.3 Taking A Quiz
+### 6.3 Taking A Quiz
 
 Each lesson has 20 multiple-choice questions.
 
 1. Open a lesson.
 2. Click **Take quiz**.
 3. Choose one answer for each question.
-4. Click **Submit quiz**.
-5. Review your score and feedback.
-6. If score is below 50%, review the lesson and retry.
-7. If score is 50% or above, progress is saved.
+4. Submit the quiz.
+5. Review score and feedback.
+6. If score is below 50%, review and retry.
+7. If score is 50% or above, progress is saved locally and shown on the dashboard.
 
-The app awards XP based on performance.
-
-### 5.4 Using The AI Tutor
+### 6.4 Using The AI Tutor
 
 1. Open **AI Tutor** or `/tutor`.
 2. Ask a Biology question naturally.
-3. You can ask follow-up questions like:
+3. Ask follow-ups like:
 
 ```text
 Explain reproduction
@@ -119,20 +167,22 @@ Quiz me
 What is the difference between birds and mammals?
 ```
 
-BioTutor should answer Biology questions conversationally. It should refuse non-Biology questions politely.
+BioTutor should answer Biology questions conversationally and politely refuse non-Biology questions.
 
-### 5.5 Editing Student Profile
+### 6.5 Editing Student Profile
 
 1. Open **Profile**.
 2. Edit name, school, class level, and bio.
 3. Upload a profile picture if desired.
 4. Save changes.
 
-## 6. Teacher Manual
+Profile information syncs to Firestore when Firebase is connected. Pictures sync to Firebase Storage.
 
-### 6.1 Teacher Dashboard
+## 7. Teacher Manual
 
-The teacher dashboard gives access to:
+### 7.1 Teacher Dashboard
+
+Teachers can access:
 
 - Lesson management
 - Quiz management
@@ -140,32 +190,20 @@ The teacher dashboard gives access to:
 - Student monitoring
 - Profile page
 
-### 6.2 Editing Lessons
+### 7.2 Editing Lessons
 
 1. Log in as a teacher.
 2. Open `/teacher/lessons`.
-3. Select a lesson from the left list.
-4. Edit lesson title, introduction, objectives, main content, key terms, activity, remediation, and summary.
+3. Select a lesson.
+4. Edit title, introduction, objectives, content, key terms, activity, remediation, and summary.
 5. Upload a lesson picture if needed.
 6. Add H5P-style activities if needed.
-7. Click **Save draft** to save locally.
-8. Click **Approve for students** to publish online.
+7. Click **Save draft** to save on the current browser.
+8. Click **Approve for students** to publish online to Firestore.
 
-Important: students in other browsers see changes only after the teacher clicks **Approve for students** and publishing succeeds.
+Students in other browsers see changes after publishing succeeds and they refresh the lesson page.
 
-### 6.3 Uploading Lesson Pictures
-
-1. Open `/teacher/lessons`.
-2. Select the lesson.
-3. Go to **Lesson picture or diagram**.
-4. Click **Upload lesson picture**.
-5. Choose an image below the size limit.
-6. Click **Save draft**.
-7. Click **Approve for students**.
-
-If the image is too large, compress it first and upload again.
-
-### 6.4 Adding H5P-Style Activities
+### 7.3 Adding H5P-Style Activities
 
 Teachers can add:
 
@@ -174,23 +212,17 @@ Teachers can add:
 - Fill in the blank
 - Drag and sort
 
-Steps:
+Fill in title, prompt, answer, and options/items, then approve the lesson for students.
 
-1. Open `/teacher/lessons`.
-2. Select the lesson.
-3. Go to **H5P-style interactive features**.
-4. Click the activity type.
-5. Fill in title, prompt, answer, and options/items.
-6. Save draft.
-7. Approve for students.
-
-### 6.5 Creating Or Uploading Quizzes
+### 7.4 Creating Or Uploading Quizzes
 
 1. Open `/teacher/quizzes`.
-2. Select the lesson/module.
+2. Select a lesson/module.
 3. Add or edit questions.
-4. Make sure there are exactly 20 complete multiple-choice questions.
-5. Each question must have:
+4. Make sure there are exactly 20 complete MCQs.
+5. Click **Publish 20 questions**.
+
+Each question needs:
 
 - Question text
 - Four options
@@ -198,108 +230,56 @@ Steps:
 - Explanation
 - Difficulty level
 
-6. Click **Publish 20 questions**.
+Published quizzes are saved in Firestore under `quizzes/{topicSlug}`.
 
-Students will see the teacher-published quiz after refresh. If no teacher quiz is published, students see the built-in 20-question starter quiz.
+## 8. Firebase Admin Manual
 
-### 6.6 Viewing Analytics
+### 8.1 View Registered Users
 
-Open `/analytics` to review:
+To see login accounts:
 
-- Quiz scores
-- Weak topics
-- Strong topics
-- Lesson completion
-- Engagement
-- Progress trends
-
-Use analytics to identify students who need support.
-
-## 7. Supabase Admin Manual
-
-### 7.1 View Registered Users
-
-To see all login accounts:
-
-1. Open Supabase.
-2. Go to **Authentication**.
+1. Open Firebase Console.
+2. Go to **Build > Authentication**.
 3. Click **Users**.
 
-To see student/teacher roles:
+To see roles and profile data:
 
-1. Go to **Table Editor**.
+1. Go to **Build > Firestore Database**.
+2. Open the `profiles` collection.
+3. Open a user document.
+4. Check the `role` field.
+
+### 8.2 Make A User A Teacher
+
+1. Open Firestore Database.
 2. Open `profiles`.
-3. Check the `role` column.
+3. Find the user document.
+4. Set `role` to `teacher`.
+5. Save.
 
-SQL to list users:
+### 8.3 Delete A User So They Can Re-Register
 
-```sql
-select
-  id,
-  full_name,
-  role,
-  school_name,
-  class_level,
-  xp,
-  level,
-  daily_streak,
-  created_at
-from public.profiles
-order by created_at desc;
-```
+1. Go to **Authentication > Users**.
+2. Find the user email.
+3. Delete the user.
+4. Go to Firestore `profiles`.
+5. Delete the matching profile document if it still exists.
 
-### 7.2 View Only Students
+After that, the user can register again with the same email.
 
-```sql
-select *
-from public.profiles
-where role = 'student'
-order by created_at desc;
-```
+## 9. Vercel Deployment Manual
 
-### 7.3 View Only Teachers
-
-```sql
-select *
-from public.profiles
-where role = 'teacher'
-order by created_at desc;
-```
-
-### 7.4 Delete A User So They Can Re-Register
-
-Best method:
-
-1. Open Supabase.
-2. Go to **Authentication**.
-3. Click **Users**.
-4. Find the user email.
-5. Open the user.
-6. Click **Delete user**.
-
-Because the `profiles` table references `auth.users` with cascade delete, deleting the auth user should also delete the profile.
-
-If a profile remains, run:
-
-```sql
-delete from public.profiles
-where id = 'PASTE_USER_ID_HERE';
-```
-
-## 8. Vercel Deployment Manual
-
-### 8.1 Add Environment Variables
+### 9.1 Add Environment Variables
 
 1. Open Vercel.
 2. Open the BioTutor project.
-3. Go to **Settings**.
-4. Click **Environment Variables**.
-5. Add each variable name and value.
-6. Select **Production**, **Preview**, and **Development** if needed.
-7. Save.
-8. Redeploy the project.
+3. Go to **Settings > Environment Variables**.
+4. Add every Firebase and Gemini variable.
+5. Select Production, Preview, and Development as needed.
+6. Save.
+7. Redeploy.
 
-### 8.2 Redeploy On Vercel
+### 9.2 Redeploy On Vercel
 
 1. Open Vercel project.
 2. Go to **Deployments**.
@@ -308,74 +288,75 @@ where id = 'PASTE_USER_ID_HERE';
 5. Wait until deployment says **Ready**.
 6. Open the live URL and test.
 
-## 9. Offline Access
+## 10. Offline Access
 
-BioTutor has PWA support. Students can reopen previously loaded pages when offline if the browser has cached them.
+BioTutor has PWA support. Students can reopen previously loaded pages offline if the browser cached them.
 
 For best offline use:
 
 1. Open the app while online.
-2. Open the lessons needed.
-3. Let the pages load completely.
-4. Later, reopen those pages offline.
+2. Open needed lessons.
+3. Let the pages load fully.
+4. Reopen those pages offline later.
 
-Progress sync needs internet connection.
+Progress sync and AI tutor need internet connection.
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
-### Login Says Invalid Credentials
+### Login Says Invalid Details
 
 Check:
 
 - Email and password are correct.
-- User exists under Supabase Authentication > Users.
-- Email has been confirmed if confirmation is enabled.
-- Student/teacher selected the correct role tab.
+- User exists in Firebase Authentication.
+- Email/Password sign-in is enabled.
+- Firebase environment variables are correct.
+- Vercel was redeployed after changing variables.
 
 ### Teacher Changes Not Showing For Students
 
 Check:
 
 - Teacher clicked **Approve for students**.
-- Vercel has `SUPABASE_SERVICE_ROLE_KEY`.
-- The publish message says the lesson was published online.
+- Firestore rules allow teacher writes.
+- A document exists in `lessons/{topicSlug}`.
+- The lesson document has `published = true` and `approvalStatus = approved`.
 - Student refreshed the lesson page.
-- The lesson exists in Supabase `lessons` with `published = true` and `approval_status = approved`.
+
+### Published Quiz Not Showing
+
+Check:
+
+- Teacher clicked **Publish 20 questions**.
+- Firestore has `quizzes/{topicSlug}`.
+- The quiz document has `published = true`.
+- The quiz has exactly 20 complete questions.
 
 ### Gemini AI Tutor Not Working
 
 Check:
 
-- `GEMINI_API_KEY` exists in Vercel environment variables.
+- `GEMINI_API_KEY` exists in Vercel.
 - It is not prefixed with `NEXT_PUBLIC_`.
 - Vercel was redeployed after adding the key.
-- The user is asking a Biology question.
+- The question is a Biology question.
 
-### Supabase Not Connected
-
-Check:
-
-- `NEXT_PUBLIC_SUPABASE_URL` is correct.
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` is correct.
-- `SUPABASE_SERVICE_ROLE_KEY` is correct for server publishing.
-- Supabase project is active.
-- SQL schema has been run.
-
-### Quiz Does Not Show 20 Questions
+### Firebase Not Connected
 
 Check:
 
-- The latest Vercel deployment is live.
-- The code includes `lib/starter-questions.ts`.
-- Teacher-published quiz has exactly 20 complete questions.
-- Refresh the quiz page.
+- All `NEXT_PUBLIC_FIREBASE_*` variables are correct.
+- Firebase Auth Email/Password is enabled.
+- Firestore Database exists.
+- Storage bucket exists.
+- Vercel was redeployed.
 
-## 11. Recommended Daily Use
+## 12. Recommended Daily Use
 
 For students:
 
 1. Log in.
-2. Open the next recommended lesson.
+2. Open the next lesson.
 3. Read the content.
 4. Ask BioTutor questions.
 5. Complete the quiz.
@@ -390,11 +371,10 @@ For teachers:
 4. Identify weak students.
 5. Add remediation activities where needed.
 
-## 12. Important Safety Notes
+## 13. Important Safety Notes
 
-- Do not share Supabase service role keys with students or teachers.
-- Do not put secret keys inside frontend code.
+- Do not share Firebase project credentials with students.
+- Do not expose Gemini API keys with `NEXT_PUBLIC_`.
 - Use strong passwords for teacher/admin accounts.
-- Delete test users from Supabase Authentication if they need to re-register.
-- Keep Row Level Security enabled in Supabase.
-
+- Keep Firestore and Storage rules restricted before classroom use.
+- Delete test users from Firebase Authentication if they need to re-register.

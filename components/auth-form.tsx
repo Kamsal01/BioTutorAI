@@ -2,42 +2,39 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createUserWithEmailAndPassword, sendPasswordResetEmail, signInWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured } from "@/lib/firebase/client";
 import type { Role } from "@/lib/types";
 
-function isSupabaseConfigured() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  return Boolean(
-    url &&
-      key &&
-      !url.includes("example.supabase.co") &&
-      key !== "local-dev-placeholder"
-  );
-}
+function friendlyAuthMessage(codeOrMessage: string, mode: "login" | "register") {
+  const lower = codeOrMessage.toLowerCase();
 
-function friendlyAuthMessage(message: string, mode: "login" | "register") {
-  const lower = message.toLowerCase();
-
-  if (lower.includes("invalid login credentials")) {
-    return "Invalid login credentials. Please use the email address you registered with, not your name or username, and check the password. If you have not created an account yet, click Create an account below.";
+  if (lower.includes("auth/invalid-credential") || lower.includes("auth/wrong-password") || lower.includes("auth/user-not-found")) {
+    return "Invalid login details. Please use the email address you registered with and check the password. If you have not created an account yet, click Create an account below.";
   }
 
-  if (lower.includes("email not confirmed")) {
-    return "Your email has not been confirmed yet. Check your inbox for the Supabase confirmation email, then try signing in again.";
+  if (lower.includes("auth/email-already-in-use")) {
+    return "This email is already registered. Go to Sign in, or use reset password if you forgot the password.";
   }
 
-  if (lower.includes("user already registered") || lower.includes("already registered")) {
-    return "This email is already registered. Go to Sign in, or use the password reset option if you forgot the password.";
+  if (lower.includes("auth/weak-password")) {
+    return "Password is too weak. Use at least 6 characters.";
+  }
+
+  if (lower.includes("auth/invalid-email")) {
+    return "The email address is not valid. Please check it and try again.";
+  }
+
+  if (lower.includes("auth/network-request-failed")) {
+    return "Network error. Check your internet connection and try again.";
   }
 
   if (lower.includes("password")) {
-    return mode === "login"
-      ? "The password does not match this email address. Try again or send a password reset link."
-      : message;
+    return mode === "login" ? "The password does not match this email address. Try again or send a password reset link." : codeOrMessage;
   }
 
-  return message;
+  return codeOrMessage;
 }
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
@@ -53,38 +50,46 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     const fullName = String(formData.get("fullName") || "").trim();
     setEmail(normalizedEmail);
 
-    if (!isSupabaseConfigured()) {
-      setMessage("Supabase is not connected yet. Use demo mode now, or add your real Supabase URL and anon key in .env.local, then restart the dev server.");
+    if (!isFirebaseConfigured()) {
+      setMessage("Firebase is not connected yet. Add your Firebase environment variables in .env.local or Vercel, then restart/redeploy.");
       return;
     }
 
-    const supabase = createClient();
-    const response = await (async () => {
-      try {
-        return mode === "login"
-          ? await supabase.auth.signInWithPassword({ email: normalizedEmail, password })
-          : await supabase.auth.signUp({ email: normalizedEmail, password, options: { data: { role, full_name: fullName } } });
-      } catch {
-        return {
-          error: {
-            message: "Supabase is not connected yet. Add your real Supabase URL and anon key in .env.local, then restart the dev server."
-          }
-        };
+    try {
+      const auth = getFirebaseAuth();
+      const db = getFirebaseDb();
+      const credential = mode === "login"
+        ? await signInWithEmailAndPassword(auth, normalizedEmail, password)
+        : await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+
+      if (mode === "register") {
+        if (fullName) await updateProfile(credential.user, { displayName: fullName });
+        await setDoc(doc(db, "profiles", credential.user.uid), {
+          full_name: fullName,
+          email: normalizedEmail,
+          role,
+          avatar_url: "",
+          school_name: "",
+          class_level: "SSII",
+          bio: "",
+          xp: 0,
+          level: 1,
+          daily_streak: 0,
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp()
+        }, { merge: true });
       }
-    })();
 
-    if (response.error) {
-      setMessage(friendlyAuthMessage(response.error.message, mode));
-      return;
+      let actualRole: Role = role;
+      const profileSnap = await getDoc(doc(db, "profiles", credential.user.uid));
+      const profileRole = profileSnap.data()?.role;
+      if (profileRole === "teacher" || profileRole === "student") actualRole = profileRole;
+
+      startTransition(() => router.push(actualRole === "teacher" ? "/teacher" : "/student"));
+    } catch (error) {
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : error instanceof Error ? error.message : "Could not sign in.";
+      setMessage(friendlyAuthMessage(code, mode));
     }
-
-    if (mode === "register" && !response.data.session) {
-      setMessage("Account created. Check your email for the confirmation link, then come back to sign in.");
-      return;
-    }
-
-    const actualRole = response.data.user?.user_metadata?.role === "teacher" ? "teacher" : role;
-    startTransition(() => router.push(actualRole === "teacher" ? "/teacher" : "/student"));
   }
 
   async function sendPasswordReset() {
@@ -94,22 +99,18 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       return;
     }
 
-    if (!isSupabaseConfigured()) {
-      setMessage("Supabase is not connected yet, so password reset cannot be sent.");
+    if (!isFirebaseConfigured()) {
+      setMessage("Firebase is not connected yet, so password reset cannot be sent.");
       return;
     }
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-      redirectTo: `${window.location.origin}/login`
-    });
-
-    if (error) {
-      setMessage(friendlyAuthMessage(error.message, mode));
-      return;
+    try {
+      await sendPasswordResetEmail(getFirebaseAuth(), normalizedEmail);
+      setMessage("Password reset link sent. Check the inbox for your registered email address.");
+    } catch (error) {
+      const code = typeof error === "object" && error && "code" in error ? String(error.code) : error instanceof Error ? error.message : "Could not send password reset.";
+      setMessage(friendlyAuthMessage(code, mode));
     }
-
-    setMessage("Password reset link sent. Check the inbox for your registered email address.");
   }
 
   return (

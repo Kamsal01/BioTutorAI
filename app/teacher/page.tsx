@@ -47,7 +47,7 @@ export default function TeacherDashboard() {
             </Card>
             <Card>
               <h2 className="flex items-center gap-2 text-xl font-black"><Download className="h-5 w-5 text-coral" /> Reports</h2>
-              <p className="mt-2 text-sm text-slate-600">Export quiz performance, topic mastery, engagement, and chatbot interaction summaries as CSV from Supabase or your reporting job.</p>
+              <p className="mt-2 text-sm text-slate-600">Export quiz performance, topic mastery, engagement, and chatbot interaction summaries as CSV from Firestore or your reporting job.</p>
             </Card>
           </aside>
         </div>
@@ -55,5 +55,6 @@ export default function TeacherDashboard() {
     </Shell>
   );
 }
+
 
 

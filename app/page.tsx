@@ -6,7 +6,7 @@ const featureCards: { Icon: LucideIcon; title: string; text: string }[] = [
   { Icon: Bot, title: "AI Biology tutor", text: "Guided explanations, follow-up questions, and Biology-only guardrails." },
   { Icon: GraduationCap, title: "Adaptive mastery", text: "Pre-tests, quizzes, remediation, XP, badges, and level unlocks." },
   { Icon: LineChart, title: "Teacher analytics", text: "Weak topics, engagement, quiz scores, and export-ready reporting." },
-  { Icon: ShieldCheck, title: "Secure by design", text: "Supabase Auth, role-based access, RLS policies, and protected API keys." }
+  { Icon: ShieldCheck, title: "Secure by design", text: "Firebase Auth, role-based profiles, Firestore rules, Storage rules, and protected API keys." }
 ];
 
 export default function LandingPage() {
@@ -35,3 +35,4 @@ export default function LandingPage() {
     </Shell>
   );
 }
+

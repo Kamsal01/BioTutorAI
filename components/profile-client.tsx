@@ -1,9 +1,12 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { Camera, Save, ShieldCheck, Upload, UserRound } from "lucide-react";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { Card } from "@/components/ui";
-import { createClient } from "@/lib/supabase/client";
+import { getFirebaseAuth, getFirebaseDb, getFirebaseStorage, isFirebaseConfigured } from "@/lib/firebase/client";
 import {
   defaultStudentProfile,
   initialsFromName,
@@ -26,47 +29,33 @@ export function ProfileClient({ onRoleChange }: { onRoleChange?: (role: Role) =>
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
-    let active = true;
+    const localProfile = loadStudentProfile();
+    setProfile(localProfile);
+    onRoleChange?.(localProfile.role);
 
-    async function loadProfile() {
-      const localProfile = loadStudentProfile();
-      if (active) {
-        setProfile(localProfile);
-        onRoleChange?.(localProfile.role);
-      }
+    if (!isFirebaseConfigured()) return;
 
-      const { data: { user } } = await supabase.auth.getUser();
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (user) => {
       if (!user) return;
-
-      const metadataRole: Role = user.user_metadata?.role === "teacher" ? "teacher" : "student";
-      const { data } = await supabase
-        .from("profiles")
-        .select("full_name, role, avatar_url, school_name, class_level, bio")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (!active) return;
-
+      const profileSnap = await getDoc(doc(getFirebaseDb(), "profiles", user.uid));
+      const data = profileSnap.data();
+      const role: Role = data?.role === "teacher" ? "teacher" : "student";
       const remoteProfile = saveStudentProfile({
-        fullName: data?.full_name || user.user_metadata?.full_name || localProfile.fullName,
-        role: data?.role === "teacher" ? "teacher" : metadataRole,
-        avatarUrl: data?.avatar_url || localProfile.avatarUrl,
-        schoolName: data?.school_name || localProfile.schoolName,
-        classLevel: data?.class_level || localProfile.classLevel,
-        bio: data?.bio || localProfile.bio
+        fullName: String(data?.full_name || user.displayName || localProfile.fullName),
+        role,
+        avatarUrl: String(data?.avatar_url || user.photoURL || localProfile.avatarUrl),
+        schoolName: String(data?.school_name || localProfile.schoolName),
+        classLevel: String(data?.class_level || localProfile.classLevel),
+        bio: String(data?.bio || localProfile.bio)
       });
       setProfile(remoteProfile);
       onRoleChange?.(remoteProfile.role);
-    }
+    });
 
-    loadProfile();
-    return () => {
-      active = false;
-    };
-  }, [onRoleChange, supabase]);
+    return () => unsubscribe();
+  }, [onRoleChange]);
 
   function updateField(field: keyof StudentProfile, value: string) {
     setProfile((current) => ({ ...current, [field]: value }));
@@ -90,20 +79,21 @@ export function ProfileClient({ onRoleChange }: { onRoleChange?: (role: Role) =>
     const localPreview = await readFileAsDataUrl(file);
     let avatarUrl = localPreview;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const extension = file.name.split(".").pop() || "jpg";
-      const path = `${user.id}/avatar.${extension}`;
-      const { error } = await supabase.storage.from("avatars").upload(path, file, {
-        cacheControl: "3600",
-        upsert: true
-      });
-
-      if (!error) {
-        const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-        avatarUrl = data.publicUrl;
-      } else {
-        setMessage({ tone: "info", text: "Picture saved on this browser. Create the Supabase avatars bucket to sync it online." });
+    if (isFirebaseConfigured()) {
+      const user = getFirebaseAuth().currentUser;
+      if (user) {
+        try {
+          const extension = file.name.split(".").pop() || "jpg";
+          const storageRef = ref(getFirebaseStorage(), `avatars/${user.uid}/avatar.${extension}`);
+          await uploadBytes(storageRef, file, { contentType: file.type });
+          avatarUrl = await getDownloadURL(storageRef);
+          await setDoc(doc(getFirebaseDb(), "profiles", user.uid), {
+            avatar_url: avatarUrl,
+            updated_at: serverTimestamp()
+          }, { merge: true });
+        } catch {
+          setMessage({ tone: "info", text: "Picture saved on this browser. Check Firebase Storage rules if it does not sync online." });
+        }
       }
     }
 
@@ -120,24 +110,25 @@ export function ProfileClient({ onRoleChange }: { onRoleChange?: (role: Role) =>
     setProfile(nextProfile);
     onRoleChange?.(nextProfile.role);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          full_name: nextProfile.fullName,
-          avatar_url: nextProfile.avatarUrl,
-          school_name: nextProfile.schoolName,
-          class_level: nextProfile.classLevel,
-          bio: nextProfile.bio,
-          updated_at: nextProfile.updatedAt
-        })
-        .eq("id", user.id);
-
-      if (error) {
-        setMessage({ tone: "info", text: "Profile saved on this browser. Run the latest Supabase schema to sync these fields online." });
-        setSaving(false);
-        return;
+    if (isFirebaseConfigured()) {
+      const user = getFirebaseAuth().currentUser;
+      if (user) {
+        try {
+          await setDoc(doc(getFirebaseDb(), "profiles", user.uid), {
+            full_name: nextProfile.fullName,
+            email: user.email,
+            role: nextProfile.role,
+            avatar_url: nextProfile.avatarUrl,
+            school_name: nextProfile.schoolName,
+            class_level: nextProfile.classLevel,
+            bio: nextProfile.bio,
+            updated_at: serverTimestamp()
+          }, { merge: true });
+        } catch {
+          setMessage({ tone: "info", text: "Profile saved on this browser. Check Firebase Firestore rules to sync online." });
+          setSaving(false);
+          return;
+        }
       }
     }
 
@@ -176,11 +167,11 @@ export function ProfileClient({ onRoleChange }: { onRoleChange?: (role: Role) =>
           <div className="mt-5 grid w-full gap-3 text-left text-sm">
             <div className="rounded-lg bg-leaf-50 p-4">
               <p className="flex items-center gap-2 font-black text-leaf-700"><ShieldCheck className="h-4 w-4" /> Account</p>
-              <p className="mt-1 text-slate-600">Authentication is managed by Supabase Auth when connected.</p>
+              <p className="mt-1 text-slate-600">Authentication is managed by Firebase Auth when connected.</p>
             </div>
             <div className="rounded-lg bg-slate-50 p-4">
               <p className="font-black">Picture upload</p>
-              <p className="mt-1 text-slate-600">Images are previewed immediately and sync to Supabase Storage when the avatars bucket exists.</p>
+              <p className="mt-1 text-slate-600">Images preview immediately and sync to Firebase Storage when rules allow it.</p>
             </div>
           </div>
         </div>

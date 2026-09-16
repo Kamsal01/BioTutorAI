@@ -1,48 +1,51 @@
 # BioTutor ITS
 
-BioTutor ITS is a production-ready foundation for a Biology Intelligent Tutoring System for secondary school students and Biology teachers. It uses Next.js, React, TypeScript, Tailwind CSS, Supabase, Gemini, adaptive quiz logic, gamification, teacher analytics, and PWA lesson caching.
+BioTutor ITS is a production-ready Biology Intelligent Tutoring System for secondary school students and Biology teachers. It uses Next.js, React, TypeScript, Tailwind CSS, Firebase Auth, Firestore, Firebase Storage, Gemini, adaptive quiz logic, gamification, teacher analytics, and PWA lesson caching.
 
-For teacher, student, admin, Supabase, Vercel, and troubleshooting instructions, see [USER_MANUAL.md](./USER_MANUAL.md).
+For teacher, student, admin, Firebase, Vercel, and troubleshooting instructions, see [USER_MANUAL.md](./USER_MANUAL.md).
 
 ## Features
 
-- Student and teacher authentication with Supabase Auth
-- Role-based dashboard routing
-- Structured Biology lessons with objectives, pre-test flow, lesson content, key terms, diagram placeholders, activities, adaptive quiz, remediation, post-test, and summary
-- Gemini-powered Biology tutor at `/tutor`, scoped to conservation, pest and disease control, and reproduction in birds and mammals
-- Multiple-choice adaptive assessment logic with score, mastery, XP, and remediation rules
+- Student and teacher authentication with Firebase Auth
+- Role-based dashboard routing through Firestore profile roles
+- Structured Biology lessons with objectives, content, key terms, diagrams, activities, quizzes, remediation, and summary
+- Conversational Gemini-powered Biology tutor at `/tutor`
+- Built-in 20-question MCQ starter quiz for every lesson
+- Teacher quiz manager for publishing exactly 20 MCQs per module
 - Student dashboard with topics, progress, XP, streaks, badges, recommendations, and learning history
-- Editable student profile with picture upload, local fallback, and Supabase Storage sync
-- Teacher dashboard with editable lesson management, image uploads, H5P-style activity blocks, quiz management, weak-student monitoring, chatbot monitoring hooks, and analytics pages
-- Supabase schema for profiles, topics, lessons, quizzes, questions, quiz attempts, chatbot logs, progress, badges, leaderboard, and analytics events
-- PWA manifest and service-worker setup through `next-pwa` for cached lesson/static access
+- Editable student and teacher profiles with Firebase Storage picture upload
+- Teacher lesson editor with image uploads and H5P-style activity blocks
+- Firestore-backed approved lessons and published quizzes
+- PWA manifest and service-worker setup through `next-pwa`
 - Vercel-ready environment variable setup
 
 ## Install
 
 ```bash
-npm install
+pnpm install
 cp .env.example .env.local
 ```
 
-## Supabase Setup
+## Firebase Setup
 
-1. Create a Supabase project.
-2. Copy the project URL and anon key into `.env.local`:
+1. Create a Firebase project at Firebase Console.
+2. Create a Web App in the Firebase project.
+3. Enable **Authentication > Sign-in method > Email/Password**.
+4. Create a **Firestore Database**.
+5. Enable **Firebase Storage**.
+6. Copy your Firebase web app config into `.env.local`:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=your-project-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_FIREBASE_API_KEY=your-api-key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
 ```
 
-3. In Supabase SQL Editor, run `supabase/schema.sql`.
-4. Then run `supabase/seed.sql` to add only the approved lessons from `Ifeoma_lesson updated.docx`.
-5. If your project already existed before profile pictures were added, run `supabase/profile-upgrade.sql`.
-6. Run `supabase/lesson-editor-upgrade.sql` to add lesson H5P blocks and lesson-media storage.`r`n7. Run `supabase/quiz-manager-upgrade.sql` if your project existed before 20-question teacher quizzes were added.
-7. In Supabase Authentication settings, enable email/password sign-in.
-8. Keep Row Level Security enabled. The schema includes RLS policies and helper functions for teacher access.
-
-The profile upgrade creates public `avatars` storage and lets each signed-in user upload only inside their own avatar folder.`r`n`r`nTeacher publishing online requires `SUPABASE_SERVICE_ROLE_KEY` in Vercel. Use the Supabase service role key only as a server environment variable; never expose it with `NEXT_PUBLIC_`.
+7. In Firebase Firestore Rules, use `firebase-firestore.rules` as a starting point.
+8. In Firebase Storage Rules, use `firebase-storage.rules` as a starting point.
 
 ## Gemini Setup
 
@@ -50,6 +53,7 @@ Create a Gemini API key in Google AI Studio and add it to `.env.local`:
 
 ```bash
 GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.0-flash
 ```
 
 The key is only used in server API routes. Do not expose it with a `NEXT_PUBLIC_` prefix.
@@ -57,66 +61,64 @@ The key is only used in server API routes. Do not expose it with a `NEXT_PUBLIC_
 ## Run Locally
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000). Register as a student or teacher. Students route to `/student`; teachers route to `/teacher`.
 
-## Deployment on Vercel
+## Deployment On Vercel
 
 1. Push the project to GitHub.
 2. Import the repository into Vercel.
 3. Add these environment variables in Vercel Project Settings:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY` required for teacher lesson and quiz publishing online
+   - `NEXT_PUBLIC_FIREBASE_API_KEY`
+   - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
+   - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
+   - `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`
+   - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`
+   - `NEXT_PUBLIC_FIREBASE_APP_ID`
    - `GEMINI_API_KEY`
+   - `GEMINI_MODEL`
    - `NEXT_PUBLIC_APP_URL`
-4. Deploy. Run the Supabase SQL files in your production Supabase project before inviting users.
+4. Redeploy.
+5. Test register, login, lesson approval, quiz publishing, AI tutor, and profile picture upload.
 
 ## Teacher Workflow
 
 Teachers sign in with the teacher role, open `/teacher`, then use:
 
 - `/teacher/lessons` to edit lesson titles, objectives, content, key terms, diagram prompts, uploaded lesson pictures, H5P-style activities, remediation, and summaries.
-- `/teacher/quizzes` to generate, upload, edit, and publish exactly 20 MCQs per module.
+- `/teacher/quizzes` to create, upload, edit, and publish exactly 20 MCQs per module.
 - `/analytics` to review scores, weak topics, engagement, progress, and chatbot interaction trends.
 
-In a live classroom, wire the lesson and quiz forms to the Supabase `topics`, `lessons`, `quizzes`, and `questions` tables already defined in `supabase/schema.sql`.
+Teacher-approved lessons are stored in Firestore under `lessons/{topicSlug}`. Published quizzes are stored in Firestore under `quizzes/{topicSlug}`.
 
 ## Student Workflow
 
-Students open `/student`, choose a Biology topic, read the structured lesson, ask BioTutor for help, and complete the adaptive quiz. Scores below 50% trigger remediation. Scores of 50% or higher unlock progression, XP, and mastery updates. Previously opened lessons can be read offline after the PWA service worker has cached them.
+Students open `/student`, choose a Biology topic, read the lesson, ask BioTutor for help, and complete the adaptive quiz. Scores below 50% trigger remediation. Scores of 50% or higher unlock progression, XP, and mastery updates. Previously opened lessons can be read offline after the PWA service worker has cached them.
 
 Students can open `/profile` to edit their name, class level, school name, short bio, and profile picture.
 
 ## Security Notes
 
-- Supabase Auth handles credentials and sessions.
-- Role-based routing is enforced through Supabase Auth metadata and dashboard flow.
-- Teacher routes require `user_metadata.role = "teacher"` in connected production flows.
+- Firebase Auth handles credentials and sessions.
+- Firestore profile documents store user roles.
+- Firestore and Storage rules should be deployed before classroom use.
 - Gemini calls run server-side only.
-- Zod validates API payloads.
-- RLS policies restrict student records to the owner and analytics/progress records to teachers.
+- Zod validates server API payloads.
+- Do not expose Gemini keys or other server-only secrets with `NEXT_PUBLIC_`.
 
 ## Project Structure
 
 ```text
 app/                  Next.js app router pages and API routes
 components/           Reusable UI, lesson, quiz, auth, and tutor components
-lib/                  Types, Supabase clients, adaptive engine, approved course scope
-public/               PWA manifest and app icons
-supabase/             Database schema, RLS policies, and seed data
+lib/                  Types, Firebase client, adaptive engine, content, stores
+public/               PWA manifest, app icons, lesson images
+firebase-*.rules      Starter Firebase Firestore and Storage security rules
+supabase/             Legacy Supabase SQL files kept for reference only
 ```
 
-## Next Development Steps
+## Notes
 
-- Expand lesson explanations within the approved course scope while keeping `Ifeoma_lesson updated.docx` as the foundation.
-- Connect teacher forms to Supabase insert/update/delete actions.
-- Store tutor conversations in `chatbot_logs`.
-- Store quiz submissions through `/api/progress`.
-- Add CSV export from teacher analytics.
-- Add Playwright tests for auth routing, quiz scoring, and lesson offline access.
-"# BioTutorAI" 
-"# BioTutorAI"
-
+The active backend flow now uses Firebase. Supabase files remain in the repository only as legacy reference material from the earlier backend version.

@@ -1,11 +1,12 @@
 "use client";
 
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { getFirebaseAuth, getFirebaseDb, isFirebaseConfigured } from "@/lib/firebase/client";
 import { lessons } from "@/lib/content";
 import type { Difficulty, Question } from "@/lib/types";
 
 const STORAGE_KEY = "biotutor-teacher-quizzes";
 export const QUESTIONS_PER_MODULE = 20;
-const PUBLISH_TIMEOUT_MS = 30000;
 
 export type QuizBank = {
   topicSlug: string;
@@ -99,14 +100,18 @@ export function getLocalQuizBank(topicSlug: string) {
 }
 
 export async function fetchPublishedQuiz(topicSlug: string, fallbackToLocal = true) {
+  if (!isFirebaseConfigured()) return fallbackToLocal ? getLocalQuizBank(topicSlug) : null;
+
   try {
-    const response = await fetch(`/api/quizzes/${encodeURIComponent(topicSlug)}`, { cache: "no-store" });
-    if (!response.ok) return fallbackToLocal ? getLocalQuizBank(topicSlug) : null;
-    const data = await response.json() as { bank?: QuizBank | null };
-    if (!data.bank) return fallbackToLocal ? getLocalQuizBank(topicSlug) : null;
-    const bank = {
-      ...data.bank,
-      questions: data.bank.questions.map((question, index) => normalizeQuestion(question, topicSlug, index))
+    const snapshot = await getDoc(doc(getFirebaseDb(), "quizzes", topicSlug));
+    if (!snapshot.exists()) return fallbackToLocal ? getLocalQuizBank(topicSlug) : null;
+    const data = snapshot.data() as Partial<QuizBank> & { published?: boolean };
+    if (!data.published || !Array.isArray(data.questions)) return fallbackToLocal ? getLocalQuizBank(topicSlug) : null;
+    const bank: QuizBank = {
+      topicSlug,
+      title: String(data.title || `${topicSlug} Quiz`),
+      questions: data.questions.map((question, index) => normalizeQuestion(question, topicSlug, index)).slice(0, QUESTIONS_PER_MODULE),
+      updatedAt: typeof data.updatedAt === "string" ? data.updatedAt : undefined
     };
     saveQuizBank(bank);
     return bank;
@@ -116,36 +121,28 @@ export async function fetchPublishedQuiz(topicSlug: string, fallbackToLocal = tr
 }
 
 export async function publishQuizBank(bank: QuizBank) {
+  if (!isFirebaseConfigured()) {
+    throw new Error("Firebase is not connected yet. Add Firebase environment variables in Vercel, then redeploy and try again.");
+  }
+
   const complete = completeQuestions(bank.questions);
   if (complete.length !== QUESTIONS_PER_MODULE) {
     throw new Error(`Each module must have exactly ${QUESTIONS_PER_MODULE} complete questions before publishing.`);
   }
 
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), PUBLISH_TIMEOUT_MS);
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error("Please sign in as a teacher before publishing quizzes.");
 
-  try {
-    const response = await fetch(`/api/quizzes/${encodeURIComponent(bank.topicSlug)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({ ...bank, questions: complete })
-    });
+  await setDoc(doc(getFirebaseDb(), "quizzes", bank.topicSlug), {
+    topicSlug: bank.topicSlug,
+    title: bank.title,
+    questions: complete,
+    published: true,
+    updatedBy: user.uid,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
 
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({ error: "Could not publish quiz" })) as { error?: string };
-      throw new Error(data.error ?? "Could not publish quiz");
-    }
-
-    return response.json();
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("Publishing timed out. Check that SUPABASE_SERVICE_ROLE_KEY is set in Vercel, then redeploy and try again.");
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeout);
-  }
+  return { ok: true, id: bank.topicSlug };
 }
 
 export function completeQuestions(questions: Question[]) {
@@ -199,5 +196,3 @@ export function parseQuestionUpload(raw: string, topicSlug: string): Question[] 
 function isDifficulty(value: unknown): value is Difficulty {
   return value === "easy" || value === "medium" || value === "hard";
 }
-
-
