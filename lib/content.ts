@@ -74,7 +74,8 @@ const baseLessons: Lesson[] = [
       { term: "Soil conservation", meaning: "Methods used to protect soil from erosion and loss of fertility." },
       { term: "Water conservation", meaning: "Methods used to prevent water waste and protect water sources." }
     ],
-    diagramPrompt: "Approved-note diagram placeholder: soil and water conservation methods.",
+    diagramPrompt: "Soil and water conservation methods, including contour farming, terracing, mulching, tree planting, rainwater harvesting, and drip irrigation.",
+    diagramImageUrl: "/lessons/lesson-one-conservation-natural-resources.png",
     activity: "List three soil conservation methods and three water conservation methods from the uploaded lesson note, then explain one method in your own words.",
     remediation: "Review the meaning and importance of conservation, then compare soil conservation with water conservation.",
     summary: "Conservation protects natural resources. Soil and water conservation help preserve resources needed by people, plants, animals, and the environment.",
@@ -250,7 +251,8 @@ const baseLessons: Lesson[] = [
       { term: "Female reproductive organ", meaning: "A structure involved in producing female reproductive cells or supporting development." },
       { term: "Comparison", meaning: "Stating similarities and differences between two things." }
     ],
-    diagramPrompt: "Approved-note diagram placeholder: male and female reproductive organs in birds and mammals.",
+    diagramPrompt: "Comparative reproductive anatomy of a bird and male and female mammals.",
+    diagramImageUrl: "/lessons/lesson-four-reproduction-birds-mammals.png",
     activity: "Make a two-column comparison between reproduction in birds and mammals using mode of reproduction, embryo development, embryo nutrition, birth process, and parental care.",
     remediation: "Review the roles of male and female reproductive organs before attempting comparison questions.",
     summary: "Birds and mammals reproduce using reproductive systems with male and female organs. Their reproductive processes can be compared using similarities and differences.",
@@ -309,7 +311,8 @@ const baseLessons: Lesson[] = [
       { term: "Parental care", meaning: "Care given by parents to help offspring survive." },
       { term: "Labelled drawing", meaning: "A diagram with correct names attached to parts." }
     ],
-    diagramPrompt: "Approved-note diagram placeholder: labelled reproductive systems of birds and mammals.",
+    diagramPrompt: "Fertilization, embryonic development, and parental care in birds and mammals.",
+    diagramImageUrl: "/lessons/lesson-six-fertilization-development-care.png",
     activity: "Draw one approved reproductive system diagram and label the parts shown in the lesson note.",
     remediation: "Study the labelled diagrams again, then review fertilization and the stages of embryonic development.",
     summary: "Lesson Six covers labelled reproductive diagrams, fertilization, embryonic development, parental care, and stages of development in birds and mammals.",
